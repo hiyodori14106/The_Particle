@@ -1,6 +1,6 @@
 let e = 1;
 fiction a () {
-  document.getElementById("result").textContent = e;
+  document.getElementById("text").textContent = e;
   e++;
   
 }
