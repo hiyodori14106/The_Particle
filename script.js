@@ -1,6 +1,10 @@
 let e = 1;
-fiction a () {
-  document.getElementById("text").textContent = e;
-  e++;
-}
-setInterval(a, 1000); 
+
+      
+        function a() {
+            const el = document.getElementById("text");
+            if (el) {
+                el.textContent = e; 
+                e++; 
+        }
+        setInterval(a, 1000);
