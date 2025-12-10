@@ -1,13 +1,12 @@
-document.addEventListener("DOMContentLoaded", function () {
-    let e = 1;
+ let a = 0;
+function buttonClick(arg) {
+    a++;
+}
+let button = document.getElementById('button');
+button.addEventListener('click', function() {
+    buttonClick(1);
+  document.getElementById("text").textContent = a;
+});
+  
 
-    function a() {
-        const el = document.getElementById("text");
-        if (el) {
-            el.textContent = e;
-            e++;
-        }
-    }
 
-    a();
-    setInterval(a, 1000);
