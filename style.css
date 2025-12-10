@@ -5,7 +5,7 @@ background-color:#151515;
 #text {
   color:white
 }
- button {
+ .button1 {
 padding: 10px 20px;
 font-size: 16px;
 color: #fff;
@@ -16,5 +16,5 @@ cursor: pointer;
 transition: background-color 0.3s ease;
 }
 
-button:hover {
+.button1:hover {
 background-color: #0056b3;
