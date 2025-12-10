@@ -4,7 +4,7 @@ body {
 }
 #text {
     color: white;
-    text-align: center
+    text-align: center;
 }
 button {
     padding: 10px 20px;
@@ -15,7 +15,6 @@ button {
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.3s ease;
-    text-align: center;
 }
 button:hover {
     background-color: #0056b3;
