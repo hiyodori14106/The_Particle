@@ -2,7 +2,7 @@
 function buttonClick(arg) {
     a++;
 }
-let button = document.getElementById('button');
+let button = document.getElementByClass('button1');
 button.addEventListener('click', function() {
     buttonClick(1);
   document.getElementById("text").textContent = a;
