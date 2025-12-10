@@ -1,21 +1,19 @@
 body {
-background-color:#151515; 
-};
-
+    background-color: black;
+}
 #text {
-  color:white
-};
- .button1 {
-padding: 10px 20px;
-font-size: 16px;
-color: #fff;
-background-color: #007BFF;
-border: none;
-border-radius: 5px;
-cursor: pointer;
-transition: background-color 0.3s ease;
-};
-
-.button1:hover {
-background-color: #0056b3;
-};
+    color: white;
+}
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    color: #fff;
+    background-color: #007BFF;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+button:hover {
+    background-color: #0056b3;
+}
