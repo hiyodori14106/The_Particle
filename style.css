@@ -1,10 +1,10 @@
 body {
 background-color:#151515; 
-}
+};
 
 #text {
   color:white
-}
+};
  .button1 {
 padding: 10px 20px;
 font-size: 16px;
@@ -14,7 +14,8 @@ border: none;
 border-radius: 5px;
 cursor: pointer;
 transition: background-color 0.3s ease;
-}
+};
 
 .button1:hover {
 background-color: #0056b3;
+};
