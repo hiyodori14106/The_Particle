@@ -7,3 +7,6 @@ button.addEventListener('click', function() {
     buttonClick(1);
     document.getElementById("text").textContent = a;
 });
+setInterval(() => {
+ buttonClicl(1),1000;
+}
