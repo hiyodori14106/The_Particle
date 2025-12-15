@@ -4,4 +4,4 @@ setInterval(() => {
  e++;
  a = e+a;
  document.getElementById("text").textContent = a; 
-},1000);
+},1);
