@@ -1,5 +1,7 @@
-let a = 0;
+let e = 0;
+let e = 0;
 setInterval(() => {
- a++;
+ e++;
+ a+e; 
  document.getElementById("text").textContent = a; 
 },1000);
