@@ -8,5 +8,5 @@ button.addEventListener('click', function() {
     document.getElementById("text").textContent = a;
 });
 setInterval(() => {
- buttonClicl(1),1000;
-}
+ buttonClick(1)
+},1000);
