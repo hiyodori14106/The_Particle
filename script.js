@@ -2,6 +2,6 @@ let e = 0;
 let e = 0;
 setInterval(() => {
  e++;
- a+e; 
+ a = e+a;
  document.getElementById("text").textContent = a; 
 },1000);
