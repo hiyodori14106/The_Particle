@@ -1,7 +1,8 @@
-let a = 0;
-let e = 0;
+const game = {
+ particle:0;
+ production:1;
+}
 setInterval(() => {
- e = e+0.01
  a = e+a
  a = Math.floor(e+a);
  document.getElementById("text").textContent = a; 
