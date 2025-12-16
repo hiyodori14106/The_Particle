@@ -1,9 +1,10 @@
 const game = {
- particle:0;
- production:1;
-}
+  particle: 0,
+  production: 1
+};
+
 setInterval(() => {
- a = e+a
- a = Math.floor(e+a);
- document.getElementById("text").textContent = a; 
-},10)
+  game.particle += game.production / 100;
+
+  document.getElementById("text").textContent = Math.floor(game.particle);
+}, 10);
