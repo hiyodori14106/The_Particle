@@ -3,6 +3,8 @@ body {
     
 }
 #text {
-    color: white;
-    text-align: center;
+   color: white;           
+    text-align: center;     
+    font-size: 50px;        
+    margin-top: 50px;       
 }
