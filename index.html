@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>the-Particle</title>
+   <!-- ファビコン画像(title.png)がある場合は表示されます -->
+   <link rel="icon" href="title.png" type="image/x-icon">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 演出用レイヤー -->
+  <div id="glitch-layer" class="glitch-overlay"></div>
+
+  <div id="crunch-overlay" class="crunch-overlay">
+    <div class="event-horizon"></div>
+    <div class="singularity"></div>
+    <div class="crunch-message">
+      <h1>BIG CRUNCH</h1>
+      <p>REWRITING UNIVERSE DATA...</p>
+    </div>
+  </div>
+
+  <!-- =========================================
+     メインレイアウト
+     初期状態で .closed を付与してサイドバーを閉じた状態にする
+     ========================================= -->
+  <div class="app-wrapper closed" id="app-wrapper">
+    
+   <!-- メインゲーム画面 -->
+    <main class="game-panel">
+      
+      <div class="news-ticker-container">
+        <div class="news-track">
+          <span id="news-content">システム起動... 宇宙の観測を開始します。</span>
+        </div>
+      </div>
+
+      <header>
+        <h1>the-Particle</h1>
+        <div class="currency-container">
+          <h2 id="particle-display">0 粒子</h2>
+          <p id="pps-display">(+0.00 /秒)</p>
+        </div>
+        
+        <div id="ip-display-container" style="display:none;">
+          Infinity Points: <span id="ip-val">0</span>
+        </div>
+      </header>
+
+      <div id="shift-status" class="shift-bar" style="display: none;">
+        現在のライナック倍率: <span id="shift-mult-display" style="color:#00e676; font-weight:bold;">x1.2</span>
+        <span style="font-size:0.8em; color:#888; margin-left:10px;">(シフト回数: <span id="shift-count">0</span>)</span>
+      </div>
+
+      <div id="prestige-container" class="prestige-banner" style="display: none;">
+        <div class="prestige-info">
+          現在のライナック数: <span id="current-linac-count">0</span> / 次のシフトまで: <span id="next-shift-req">5</span>
+        </div>
+        <div class="prestige-actions">
+          <button class="prestige-btn" id="btn-linac" onclick="doLinac()">
+            <strong>ライナックを実行</strong><br>
+            <span style="font-size:0.8em;">生産倍率UP & リセット</span>
+          </button>
+          <button class="prestige-btn shift-btn" id="btn-shift" onclick="doLinacShift()" style="display:none;">
+            <strong>ライナック・シフト</strong><br>
+            <span style="font-size:0.8em;">全てを失い、ライナック性能強化</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="control-bar">
+        <span class="control-label">購入数:</span>
+        <div class="toggle-group">
+          <button class="toggle-btn active" onclick="setBuyAmount(1)" id="buy-1">x1</button>
+          <button class="toggle-btn" onclick="setBuyAmount(10)" id="buy-10">x10</button>
+          <button class="toggle-btn" onclick="setBuyAmount(100)" id="buy-100">x100</button>
+        </div>
+      </div>
+
+      <div id="generator-container"></div>
+
+      <button id="sidebar-open-btn" class="float-menu-btn" onclick="toggleSidebar()">
+        ⚙ メニュー
+      </button>
+    </main>
+
+    <!-- サイドバー -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="tab-container">
+          <button class="tab-btn active" onclick="switchTab('stats', this)">統計</button>
+          <button class="tab-btn" onclick="switchTab('settings', this)">設定</button>
+          <!-- Infinityタブ（初期は非表示） -->
+          <button class="tab-btn" id="tab-btn-infinity" onclick="switchTab('infinity', this)" style="display:none; color:#d500f9; border-color:#d500f9;">∞ INF</button>
+        </div>
+        <button class="close-btn" onclick="toggleSidebar()">✕</button>
+      </div>
+
+      <div class="sidebar-body">
+        <!-- 統計タブ -->
+        <div id="tab-stats" class="sidebar-content active">
+          <h3>STATISTICS (現在の宇宙)</h3>
+          <div class="stat-row">
+            <span class="stat-label">経過時間</span>
+            <span id="stat-time" class="stat-val">00:00:00</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">総生産量</span>
+            <span id="stat-total" class="stat-val">0 粒子</span>
+          </div>
+          <div class="stat-row" id="row-prestige" style="display:none;">
+            <span class="stat-label">通算ライナック回数</span>
+            <span id="stat-prestige" class="stat-val">0 回</span>
+          </div>
+          <div class="stat-row" id="row-shift" style="display:none;">
+            <span class="stat-label">シフト回数</span>
+            <span id="stat-shift" class="stat-val">0 回</span>
+          </div>
+          
+          <div id="infinity-stats" style="display:none; margin-top: 20px; border-top: 1px dashed #555; padding-top:10px;">
+            <h3 style="color:#d500f9;">COSMIC STATS</h3>
+            <div class="stat-row">
+              <span class="stat-label">Big Crunch 回数</span>
+              <span id="stat-crunch" class="stat-val">0 回</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Infinity到達(最短)</span>
+              <span id="stat-best-inf" class="stat-val">--:--:--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 設定タブ -->
+        <div id="tab-settings" class="sidebar-content">
+          <h3>DISPLAY</h3>
+          <div class="select-wrapper">
+            <select id="notation-select" onchange="changeNotation(this.value)">
+              <option value="sci">科学的単位 (1e10)</option>
+              <option value="eng">英語単位 (10 B)</option>
+              <option value="jp">日本語単位 (100億)</option>
+            </select>
+          </div>
+
+          <h3>DATA MANAGEMENT</h3>
+          <button class="ui-btn primary" onclick="saveGame()">データをセーブ</button>
+          <div class="status-text" id="save-status" style="margin-top:5px; font-size:0.8em; color:#888;">オートセーブ有効 (10秒毎)</div>
+          
+          <button class="ui-btn" onclick="exportSave()">セーブデータを書き出し</button>
+          <button class="ui-btn" onclick="toggleImportArea()">セーブデータを読み込み</button>
+          
+          <div id="io-area" style="display:none; margin-top:10px;">
+            <p style="font-size:0.8rem; color:#888; margin-bottom:5px;" id="io-label">データ文字列:</p>
+            <textarea id="save-textarea" placeholder="ここにセーブデータを貼り付け..."></textarea>
+            <button class="ui-btn primary" id="io-action-btn" onclick="confirmImport()">読み込む</button>
+          </div>
+
+          <div class="danger-zone" style="margin-top:30px;">
+            <h4>DANGER ZONE</h4>
+            <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">全ての進捗を完全に削除します。</p>
+            <button class="ui-btn danger" onclick="hardReset()">COMPLETE WIPE</button>
+          </div>
+        </div>
+
+        <!-- Infinityタブ（新規） -->
+        <div id="tab-infinity" class="sidebar-content">
+          <div class="inf-header-info">
+            <h3 style="color:#d500f9; border-color:#d500f9;">INFINITY CORE</h3>
+            <p>所持 IP: <span id="inf-tab-ip-display" style="color:#fff; font-weight:bold;">0</span></p>
+          </div>
+
+          <div class="inf-section">
+            <h4>UPGRADES</h4>
+            <div id="infinity-upgrades-container" class="inf-upgrade-grid">
+              <!-- JSで生成されます -->
+            </div>
+          </div>
+
+          <div class="inf-section" id="break-infinity-section" style="display:none; margin-top:30px; border-top:1px solid #d500f9; padding-top:10px;">
+            <h4 style="color:#ff0055;">BREAK INFINITY</h4>
+            <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">
+              粒子の制限を解除し、無限を超えた世界へ。
+            </p>
+            <button id="btn-break-infinity" class="ui-btn" style="border-color:#ff0055; color:#ff0055;" onclick="unlockBreakInfinity()">
+              UNLOCK BREAK (Req: 1.00e50 IP)
+            </button>
+            <div id="break-active-msg" style="display:none; color:#ff0055; text-align:center; border:1px solid #ff0055; padding:10px;">
+              <strong>LIMIT BROKEN</strong><br>
+              上限解除済み
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="sidebar-footer">
+        ver 2.8 Infinity Update
+      </div>
+    </aside>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
