@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>the-Particle</title>
+   <!-- ファビコン画像(title.png)がある場合は表示されます -->
+   <link rel="icon" href="title.png" type="image/x-icon">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 演出用レイヤー -->
+  <div id="glitch-layer" class="glitch-overlay"></div>
+
+  <div id="crunch-overlay" class="crunch-overlay">
+    <div class="event-horizon"></div>
+    <div class="singularity"></div>
+    <div class="crunch-message">
+      <h1>BIG CRUNCH</h1>
+      <p>宇宙データを再構築中...</p>
+    </div>
+  </div>
+
+  <!-- ゲーム内モーダル（alert/confirmの代替） -->
+  <div id="game-modal-overlay" class="modal-overlay">
+    <div class="modal-box">
+      <h3 id="modal-title" class="modal-title"></h3>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-actions" class="modal-actions"></div>
+    </div>
+  </div>
+
+  <!-- トースト通知（セーブ・実績解除など、ゲーム全体で使う共通通知） -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- =========================================
+     メインレイアウト
+     サイドバーは廃止し、画面全体を切り替えるナビゲーション方式に変更
+     ========================================= -->
+  <div class="app-wrapper" id="app-wrapper">
+
+    <!-- 上部ナビゲーション（画面切り替え） -->
+    <nav class="main-nav">
+      <div class="tab-container main-tab-container">
+        <button class="tab-btn active" onclick="switchTab('main', this)">メイン</button>
+        <button class="tab-btn" onclick="switchTab('stats', this)">統計</button>
+        <button class="tab-btn" onclick="switchTab('achievements', this)">実績</button>
+        <!-- Infinityタブ（初期は非表示） -->
+        <button class="tab-btn" id="tab-btn-infinity" onclick="switchTab('infinity', this)" style="display:none; color:#d500f9; border-color:#d500f9;">∞ INFINITY</button>
+        <!-- チャレンジタブ（Big Crunch 5回以上で解放） -->
+        <button class="tab-btn" id="tab-btn-challenge" onclick="switchTab('challenge', this)" style="display:none;">チャレンジ</button>
+        <!-- Break Infinityタブ（解放されるまで非表示） -->
+        <button class="tab-btn" id="tab-btn-break-infinity" onclick="switchTab('break-infinity', this)" style="display:none;">Break Infinity</button>
+        <button class="tab-btn" id="tab-btn-automation" onclick="switchTab('automation', this)" style="display:none;">自動化</button>
+        <button class="tab-btn" onclick="switchTab('settings', this)">設定</button>
+      </div>
+    </nav>
+
+    <div class="screens">
+
+      <!-- メイン画面 -->
+      <main id="tab-main" class="sidebar-content screen-flex game-panel active">
+
+        <div class="news-ticker-container">
+          <div class="news-track">
+            <span id="news-content">システム起動... 宇宙の観測を開始します。</span>
+          </div>
+        </div>
+
+        <header>
+          <h1>the-Particle</h1>
+          <div class="currency-row">
+            <div class="currency-container">
+              <h2 id="particle-display">0 粒子</h2>
+              <p id="pps-display">(+0.00 /秒)</p>
+            </div>
+
+            <div id="prestige-container" class="linac-inline" style="display: none;">
+              <span id="linac-mult-inline" class="linac-mult">x1.20</span>
+              <button id="btn-linac" class="linac-btn" onclick="doLinac()">ライナック</button>
+              <button id="btn-shift" class="linac-btn shift" onclick="doLinacShift()" style="display:none;">シフト</button>
+            </div>
+          </div>
+
+          <div id="ip-display-container" style="display:none;">
+            IP: <span id="ip-val">0</span>
+          </div>
+        </header>
+
+        <div id="shift-status" class="shift-bar" style="display: none;">
+          現在のライナック倍率: <span id="shift-mult-display" style="color:#00e676; font-weight:bold;">x1.2</span>
+          <span style="font-size:0.8em; color:#888; margin-left:10px;">(シフト回数: <span id="shift-count">0</span>)</span>
+        </div>
+
+        <div class="control-bar">
+          <span class="control-label">購入数:</span>
+          <div class="toggle-group">
+            <button class="toggle-btn active" onclick="setBuyAmount(1)" id="buy-1">x1</button>
+            <button class="toggle-btn" onclick="setBuyAmount(10)" id="buy-10">x10</button>
+            <button class="toggle-btn" onclick="setBuyAmount(100)" id="buy-100">x100</button>
+            <button class="toggle-btn" onclick="setBuyAmount('max')" id="buy-max">最大購入</button>
+          </div>
+        </div>
+
+        <div id="generator-container"></div>
+      </main>
+
+      <!-- 統計画面 -->
+      <section id="tab-stats" class="sidebar-content screen-page">
+        <h3>基本</h3>
+        <div class="stat-row">
+          <span class="stat-label">経過時間(現在の宇宙)</span>
+          <span id="stat-time" class="stat-val">00:00:00</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">総プレイ時間(全リセット含む)</span>
+          <span id="stat-total-playtime" class="stat-val">00:00:00</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">総粒子生産量</span>
+          <span id="stat-total" class="stat-val">0 粒子</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">現在のPPS</span>
+          <span id="stat-current-pps" class="stat-val">0.00 /秒</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">最高PPS</span>
+          <span id="stat-highest-pps" class="stat-val">0.00 /秒</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">最高粒子数</span>
+          <span id="stat-highest-particles" class="stat-val">0</span>
+        </div>
+
+        <h3>Linac</h3>
+        <div class="stat-row" id="row-prestige" style="display:none;">
+          <span class="stat-label">総Linac回数</span>
+          <span id="stat-prestige" class="stat-val">0 回</span>
+        </div>
+        <div class="stat-row" id="row-shortest-linac" style="display:none;">
+          <span class="stat-label">最短Linac時間</span>
+          <span id="stat-shortest-linac" class="stat-val">--:--:--</span>
+        </div>
+        <div class="stat-row" id="row-best-linac-mult" style="display:none;">
+          <span class="stat-label">Linac最高倍率</span>
+          <span id="stat-best-linac-mult" class="stat-val">x1.00</span>
+        </div>
+
+        <h3>Shift</h3>
+        <div class="stat-row" id="row-shift" style="display:none;">
+          <span class="stat-label">総Shift回数</span>
+          <span id="stat-shift" class="stat-val">0 回</span>
+        </div>
+
+        <h3>Accelerator</h3>
+        <div id="accel-stats-list"><!-- JSで生成されます --></div>
+
+        <div id="infinity-stats" style="display:none; margin-top: 20px; border-top: 1px dashed #555; padding-top:10px;">
+          <h3 style="color:#d500f9;">宇宙統計</h3>
+          <div class="stat-row">
+            <span class="stat-label">Big Crunch 回数</span>
+            <span id="stat-crunch" class="stat-val">0 回</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Infinity到達(最短)</span>
+            <span id="stat-best-inf" class="stat-val">--:--:--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 実績画面 -->
+      <section id="tab-achievements" class="sidebar-content screen-page">
+        <h3>実績</h3>
+        <p style="font-size:0.8rem; color:#888; margin:-8px 0 15px 0;">
+          解除済み: <span id="ach-unlocked-count">0</span> / <span id="ach-total-count">0</span>
+        </p>
+        <div id="achievements-list" class="ach-grid"><!-- JSで生成されます --></div>
+      </section>
+
+      <!-- Automation画面（自動化のみ） -->
+      <section id="tab-automation" class="sidebar-content screen-page">
+        <h3>Accelerator自動購入</h3>
+        <div id="auto-accel-list"><!-- JSで生成されます --></div>
+      </section>
+
+      <!-- 設定画面（表示・演出・UI設定のみ） -->
+      <section id="tab-settings" class="sidebar-content screen-page">
+        <h3>表示設定</h3>
+        <div class="select-wrapper">
+          <select id="notation-select" onchange="changeNotation(this.value)">
+            <option value="sci">科学的単位 (1e10)</option>
+            <option value="eng">英語単位 (10 B)</option>
+            <option value="jp">日本語単位 (100億)</option>
+          </select>
+        </div>
+
+        <h3>演出スキップ</h3>
+        <div id="setting-toggles-container"><!-- JSで生成されます --></div>
+
+        <h3>データ管理</h3>
+        <button class="ui-btn primary" onclick="saveGame()">データをセーブ</button>
+        <div class="status-text" id="save-status" style="margin-top:5px; font-size:0.8em; color:#888;">オートセーブ有効 (10秒毎)</div>
+
+        <button class="ui-btn" onclick="exportSave()">セーブデータを書き出し</button>
+        <button class="ui-btn" onclick="toggleImportArea()">セーブデータを読み込み</button>
+
+        <div id="io-area" style="display:none; margin-top:10px;">
+          <p style="font-size:0.8rem; color:#888; margin-bottom:5px;" id="io-label">データ文字列:</p>
+          <textarea id="save-textarea" placeholder="ここにセーブデータを貼り付け..."></textarea>
+          <button class="ui-btn primary" id="io-action-btn" onclick="confirmImport()">読み込む</button>
+        </div>
+
+        <div class="danger-zone" style="margin-top:30px;">
+          <h4>危険ゾーン</h4>
+          <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">全ての進捗を完全に削除します。</p>
+          <button class="ui-btn danger" onclick="hardReset()">完全初期化</button>
+        </div>
+      </section>
+
+      <!-- Infinity画面 -->
+      <section id="tab-infinity" class="sidebar-content screen-page">
+        <div class="inf-header-info">
+          <h3 style="color:#d500f9; border-color:#d500f9;">Infinityアップデート</h3>
+          <p>所持 IP: <span id="inf-tab-ip-display" style="color:#fff; font-weight:bold;">0</span></p>
+        </div>
+
+        <div class="inf-section">
+          <h4>強化</h4>
+          <div id="infinity-upgrades-container" class="inf-upgrade-grid">
+            <!-- JSで生成されます -->
+          </div>
+        </div>
+
+        <div class="inf-section" id="break-infinity-unlock-section" style="margin-top:30px; border-top:1px solid #ff0055; padding-top:15px; display:none;">
+          <h4 style="color:#ff0055;">Break Infinity</h4>
+          <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">
+            粒子の上限(1.79e308)を解除し、さらに先へ進めるようになります。
+          </p>
+          <button id="btn-break-infinity-unlock" class="ui-btn" style="border-color:#ff0055; color:#ff0055;" onclick="tryUnlockBreakInfinity()">
+            上限を解除 (必要: 1.00e50 IP)
+          </button>
+          <div id="break-infinity-unlocked-msg" style="display:none; color:#ff0055; text-align:center; border:1px solid #ff0055; padding:10px;">
+            <strong>LIMIT BROKEN</strong><br>
+            Break Infinityタブが解放されました
+          </div>
+        </div>
+      </section>
+
+      <!-- チャレンジ画面 -->
+      <section id="tab-challenge" class="sidebar-content screen-page">
+        <h3>チャレンジ</h3>
+        <div id="challenge-list"><!-- JSで生成されます --></div>
+      </section>
+
+      <!-- Break Infinity画面（中身は breakinfinity.js が動的に描画する） -->
+      <section id="tab-break-infinity" class="sidebar-content screen-page">
+        <h3>Break Infinity</h3>
+        <div id="break-infinity-content">
+          <p style="color:#888; text-align:center; margin-top:40px;">読み込み中...</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="breakinfinity.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
