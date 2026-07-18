@@ -286,10 +286,14 @@ function getInitialState() {
       skipLinacConf: false,
       skipShiftConf: false,
       skipCrunchAnim: false,
-      glitchEffect: true
+      glitchEffect: true,
+      sfxEnabled: true,
+      bgmEnabled: true
     },
     achievements: getDefaultAchievements(),
     achievementPoints: 0,
+    lastSaveTime: Date.now(),
+    timeFlux: { time: 0, speed: 1, capLevel: 0 },
     challenge: getDefaultChallengeState(),
     breakInfinity: (typeof getDefaultBreakInfinityState === 'function') ? getDefaultBreakInfinityState() : { unlocked: false },
     lastTick: Date.now(),
@@ -301,6 +305,13 @@ function getInitialState() {
 let game = getInitialState();
 let isCrunching = false;
 let currentPPSValue = 0; // 統計画面「現在のPPS」表示用キャッシュ
+let offlineSimulating = false; // オフライン進行の一括シミュレーション中はtrue（通知・重いDOM更新を抑制する）
+
+// 効果音再生の共通窓口（オフライン進行シミュレーション中は鳴らさない）
+function playSE(name) {
+  if (offlineSimulating) return;
+  if (typeof AudioSystem !== 'undefined') AudioSystem.playSE(name);
+}
 
 // --- ユーティリティ ---
 function format(num) {
@@ -357,6 +368,16 @@ function formatTime(seconds) {
   return `${h}:${m}:${s}`;
 }
 
+// Decimalライブラリには整数乗のpowが無いため、log10空間で計算するヘルパーを用意する
+// （base自体は通常サイズのnumberでよい。nが非常に大きくてもオーバーフローしない）
+function decimalPowInt(base, n) {
+  if (n <= 0) return new Decimal(1);
+  const totalLog = n * Math.log10(base);
+  const exponent = Math.floor(totalLog);
+  const mantissa = Math.pow(10, totalLog - exponent);
+  return Decimal.fromMantissaExponent(mantissa, exponent);
+}
+
 // --- 計算ロジック ---
 
 // コスト補正: 通常コスト → Infinityコスト補正 → Challengeコスト補正 の順で適用
@@ -391,27 +412,43 @@ function getTotalCostMultiplier() {
 
 // 単価計算: purchaseIndex(1始まり)番目の1個の価格。
 // 1〜9個目ごとの上昇は costMult(通常×2)、10個目ごとの上昇だけ×100（×2は掛けない）。
+// numberで安全に計算できるうちはnumberで返し、オーバーフローする規模になったら
+// （買い過ぎて桁数が莫大になっても値段がInfinityになって買えなくならないよう）
+// Decimalで計算して返す。
 function getUnitCost(gen, purchaseIndex) {
   const m = purchaseIndex;
   const milestones = Math.floor(m / 10);           // これまでに跨いだ10の位の回数
   const totalSteps = m - 1;                          // 1個目から数えた合計の価格上昇回数
   const normalSteps = totalSteps - milestones;       // 通常倍率(×2)が適用される回数
   const milestoneMult = 100;
-  return gen.baseCost * Math.pow(gen.costMult, normalSteps) * Math.pow(milestoneMult, milestones);
+
+  // 2^900 ≈ 8.6e270、100^130 = 1e260。この範囲ならnumberでもオーバーフローしない。
+  if (normalSteps < 900 && milestones < 130) {
+    const cost = gen.baseCost * Math.pow(gen.costMult, normalSteps) * Math.pow(milestoneMult, milestones);
+    if (isFinite(cost)) return cost;
+  }
+  // オーバーフローする規模: Decimalで計算する
+  const normalPart = decimalPowInt(gen.costMult, normalSteps);
+  const milestonePart = decimalPowInt(milestoneMult, milestones);
+  return normalPart.mul(milestonePart).mul(gen.baseCost);
 }
 
 // 指定した個数(count)ちょうどを購入する場合の合計コスト（所持数に関係なく計算）
 function getBulkCost(gen, count) {
   let total = 0;
   for (let i = 1; i <= count; i++) {
-    total += getUnitCost(gen, gen.bought + i);
+    const uc = getUnitCost(gen, gen.bought + i);
+    total = amtAdd(total, uc);
   }
-  return total * getTotalCostMultiplier();
+  const mult = getTotalCostMultiplier();
+  return (total instanceof Decimal) ? total.mul(mult) : total * mult;
 }
 
 // 次の1個を購入する価格
 function getCost(gen) {
-  return getUnitCost(gen, gen.bought + 1) * getTotalCostMultiplier();
+  const uc = getUnitCost(gen, gen.bought + 1);
+  const mult = getTotalCostMultiplier();
+  return (uc instanceof Decimal) ? uc.mul(mult) : uc * mult;
 }
 
 // 所持粒子で実際に購入可能な数量とその合計コストを求める（maxCountを上限とする）
@@ -422,9 +459,12 @@ function calculateAffordablePurchase(gen, maxCount) {
   let count = 0;
   let totalCost = 0;
   while (count < maxCount) {
-    const unitCost = getUnitCost(gen, gen.bought + count + 1) * costMultiplier;
-    if (!isFinite(unitCost) || particles.lt(totalCost + unitCost)) break;
-    totalCost += unitCost;
+    let unitCost = getUnitCost(gen, gen.bought + count + 1);
+    unitCost = (unitCost instanceof Decimal) ? unitCost.mul(costMultiplier) : unitCost * costMultiplier;
+
+    const nextTotal = amtAdd(totalCost, unitCost);
+    if (particles.lt(nextTotal)) break;
+    totalCost = nextTotal;
     count++;
   }
   return { count, cost: totalCost };
@@ -512,15 +552,10 @@ function getShiftReq() {
 }
 
 // --- ゲームループ ---
-function gameLoop() {
-  requestAnimationFrame(gameLoop);
-  if (isCrunching) return;
-
-  const now = Date.now();
-  let dt = (now - game.lastTick) / 1000;
-  if (dt > 1) dt = 1; 
-  game.lastTick = now;
-
+// ゲームの1ティック分の計算のみを行う（DOM更新は含まない）。
+// 通常のgameLoop・オフライン進行・Time Warpのすべてがこの関数を共有することで
+// 計算コードの重複を避ける。
+function simulateTick(dt) {
   if (!game.stats.totalTimePlayed) game.stats.totalTimePlayed = 0;
   game.stats.totalTimePlayed += dt;
 
@@ -535,7 +570,7 @@ function gameLoop() {
     return;
   }
 
-  updateGlitchEffect();
+  if (!offlineSimulating) updateGlitchEffect();
   const globalMult = getGlobalMultiplier();
   
   game.generators.forEach((gen, i) => {
@@ -621,17 +656,37 @@ function gameLoop() {
   game.stats.highestParticles = toDecimal(game.stats.highestParticles);
   if (game.particles.gt(game.stats.highestParticles)) game.stats.highestParticles = game.particles;
   if (currentPPS > (game.stats.highestPPS || 0)) game.stats.highestPPS = currentPPS;
+}
 
-  updateUI(currentPPS);
-  
+function gameLoop() {
+  requestAnimationFrame(gameLoop);
+  if (isCrunching || offlineSimulating) return;
+
+  const now = Date.now();
+  let dt = (now - game.lastTick) / 1000;
+  if (dt > 1) dt = 1; 
+  game.lastTick = now;
+
+  // Time Flux（TF）によるゲーム速度の加速。TFを消費している間だけ倍速になる。
+  let effectiveDt = dt;
+  if (typeof applyTimeFlux === 'function') {
+    effectiveDt = applyTimeFlux(dt);
+  }
+
+  simulateTick(effectiveDt);
+
   const wrapper = document.getElementById('app-wrapper');
   if (wrapper && !wrapper.classList.contains('closed')) {
+    updateUI(currentPPSValue);
     updateStats();
     updateInfinityTab();
     updateAutomationTab();
     updateSkipToggleVisibility();
     if (typeof updateBreakInfinityTab === 'function') updateBreakInfinityTab();
     if (typeof updateBreakInfinityUnlockSection === 'function') updateBreakInfinityUnlockSection();
+    if (typeof updateTimeFluxTab === 'function') updateTimeFluxTab();
+  } else {
+    updateUI(currentPPSValue);
   }
   
   if (now % 10000 < 20) saveGame(true);
@@ -710,6 +765,7 @@ function buyGenerator(index) {
 
   revealNextGenerator(index);
 
+  playSE('buy');
   updateUI(0);
   checkAchievements();
 }
@@ -731,6 +787,7 @@ function buyMaxGenerator(index) {
 
   revealNextGenerator(index);
 
+  playSE('buy');
   updateUI(0);
   checkAchievements();
 }
@@ -793,6 +850,7 @@ function executeLinac() {
   saveGame();
   updateUI(0);
   showNotification('ライナックしました', `倍率 x${format(newMult)}`, '🌌');
+  playSE('linac');
   checkAchievements();
 }
 
@@ -832,6 +890,7 @@ function executeLinacShift(nextBase) {
   saveGame();
   updateUI(0);
   showNotification('シフトしました', `倍率 x${format(nextBase)}`, '🔄');
+  playSE('shift');
   checkAchievements();
   
   if (!game.settings.skipShiftConf) {
@@ -1253,13 +1312,16 @@ function triggerBigCrunch() {
       game.challenge.completed[clearedId] = true;
       game.challenge.active = null;
       showNotification('Challenge Complete!', `${c.title}クリア！<br>永久効果: ${c.rewardLabel}`, '🏅', 'achievement');
+      playSE('achievement');
       updateChallengeTab();
     } else {
       game.challenge.active = null;
     }
   }
   
-  if (game.settings.skipCrunchAnim) {
+  playSE('crunch');
+
+  if (game.settings.skipCrunchAnim || offlineSimulating) {
     performInfinityReset();
     return; 
   }
@@ -1300,13 +1362,15 @@ function performInfinityReset() {
   }));
   // unlocksは維持する
   
-  updateUI(0);
-  updateStats();
-  updateInfinityTab();
-  updateAchievementsTab();
+  if (!offlineSimulating) {
+    updateUI(0);
+    updateStats();
+    updateInfinityTab();
+    updateAchievementsTab();
+    document.body.classList.remove('glitched');
+    saveGame();
+  }
   checkAchievements();
-  document.body.classList.remove('glitched');
-  saveGame();
   console.log("Universe Reborn.");
 }
 
@@ -1314,6 +1378,7 @@ function performInfinityReset() {
 function saveGame(isAuto = false) {
   if(isCrunching && isAuto) return;
   game.lastTick = Date.now();
+  game.lastSaveTime = Date.now();
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(game));
     if (!isAuto) {
@@ -1323,6 +1388,7 @@ function saveGame(isAuto = false) {
         setTimeout(() => s.textContent = "オートセーブ有効 (10秒毎)", 2000);
       }
       showNotification('セーブしました', '', '💾');
+      playSE('save');
     }
   } catch(e) { console.error(e); }
 }
@@ -1340,6 +1406,12 @@ function loadGame() {
       game.unlocks = { ...fresh.unlocks, ...(parsed.unlocks || {}) };
       game.achievements = { ...getDefaultAchievements(), ...(parsed.achievements || {}) };
       game.achievementPoints = (typeof parsed.achievementPoints === 'number') ? parsed.achievementPoints : 0;
+      game.lastSaveTime = (typeof parsed.lastSaveTime === 'number') ? parsed.lastSaveTime : Date.now();
+      game.timeFlux = {
+        time: (parsed.timeFlux && typeof parsed.timeFlux.time === 'number') ? parsed.timeFlux.time : 0,
+        speed: (parsed.timeFlux && typeof parsed.timeFlux.speed === 'number') ? parsed.timeFlux.speed : 1,
+        capLevel: (parsed.timeFlux && typeof parsed.timeFlux.capLevel === 'number') ? parsed.timeFlux.capLevel : 0
+      };
       game.challenge = {
         ...getDefaultChallengeState(),
         ...(parsed.challenge || {}),
@@ -1367,6 +1439,8 @@ function loadGame() {
       if (game.settings.skipShiftConf === undefined) game.settings.skipShiftConf = false;
       if (game.settings.skipCrunchAnim === undefined) game.settings.skipCrunchAnim = false;
       if (game.settings.glitchEffect === undefined) game.settings.glitchEffect = true;
+      if (game.settings.sfxEnabled === undefined) game.settings.sfxEnabled = true;
+      if (game.settings.bgmEnabled === undefined) game.settings.bgmEnabled = true;
 
       if (!game.stats.totalTimePlayed) game.stats.totalTimePlayed = 0;
       // 既存セーブの不足データを自動補完（統計拡張）
@@ -1501,7 +1575,10 @@ function showModal({ title = '', body = '', buttons = [] } = {}) {
       const btn = document.createElement('button');
       btn.className = 'ui-btn' + (btnConf.primary ? ' primary' : '') + (btnConf.danger ? ' danger' : '');
       btn.textContent = btnConf.label;
-      btn.onclick = () => { if (typeof btnConf.onClick === 'function') btnConf.onClick(); };
+      btn.onclick = () => {
+        playSE('click');
+        if (typeof btnConf.onClick === 'function') btnConf.onClick();
+      };
       actionsEl.appendChild(btn);
     });
   }
@@ -1516,6 +1593,7 @@ function closeModal() {
 
 // --- 共通トースト通知システム（ゲーム全体で再利用） ---
 function showNotification(title, message = '', icon = '🔔', type = '') {
+  if (offlineSimulating) return; // オフライン進行シミュレーション中は通知を出さない
   const container = document.getElementById('toast-container');
   if (!container) return;
 
@@ -1544,9 +1622,10 @@ function showNotification(title, message = '', icon = '🔔', type = '') {
   }, 3000);
 }
 
-// 効果音フック（現状は無音。将来的にAudioを鳴らす場合はここへ実装）
+// 効果音フック（audio.jsのAudioSystemへ委譲する）
 function playNotificationSound(type) {
-  // 例: const audio = new Audio('sounds/notify.mp3'); audio.play().catch(()=>{});
+  const map = { achievement: 'achievement' };
+  playSE(map[type] || 'toggle');
 }
 
 // --- 実績システム ---
@@ -1569,7 +1648,7 @@ function checkAchievements() {
     }
   });
 
-  if (anyUnlocked) {
+  if (anyUnlocked && !offlineSimulating) {
     saveGame(true);
     updateAchievementsTab();
     if (typeof updateShopTab === 'function') updateShopTab();
@@ -1739,6 +1818,7 @@ function executeStartChallenge(id) {
   updateInfinityTab();
   updateChallengeTab();
   showNotification('チャレンジ開始', c.title, '🎯');
+  playSE('challenge');
 }
 
 // --- UI操作 ---
@@ -1782,7 +1862,8 @@ function initSettingsUI() {
   const toggleContainer = document.getElementById('setting-toggles-container');
   const accelList = document.getElementById('auto-accel-list');
   const glitchContainer = document.getElementById('glitch-toggle-container');
-  if (!toggleContainer && !accelList && !glitchContainer) return;
+  const audioContainer = document.getElementById('audio-toggle-container');
+  if (!toggleContainer && !accelList && !glitchContainer && !audioContainer) return;
 
   const createToggle = (id, label, settingKey) => {
     const wrapper = document.createElement('div');
@@ -1800,6 +1881,10 @@ function initSettingsUI() {
       game.settings[settingKey] = e.target.checked;
       saveGame(true);
       showNotification('設定を保存しました', '', '⚙️');
+      if (typeof AudioSystem !== 'undefined') {
+        if (settingKey === 'bgmEnabled') AudioSystem.refreshBGMState();
+        else playSE('toggle');
+      }
     };
     return wrapper;
   };
@@ -1808,6 +1893,13 @@ function initSettingsUI() {
   if (glitchContainer && !glitchContainer.dataset.initialized) {
     glitchContainer.dataset.initialized = '1';
     glitchContainer.appendChild(createToggle('chk-glitch', '画面演出（グリッチ効果）を有効にする', 'glitchEffect'));
+  }
+
+  // SE・BGMのON/OFF切り替え
+  if (audioContainer && !audioContainer.dataset.initialized) {
+    audioContainer.dataset.initialized = '1';
+    audioContainer.appendChild(createToggle('chk-sfx', 'SE（効果音）を有効にする', 'sfxEnabled'));
+    audioContainer.appendChild(createToggle('chk-bgm', 'BGM（背景音楽）を有効にする', 'bgmEnabled'));
   }
 
   // 演出スキップ（設定画面）
@@ -2045,8 +2137,21 @@ function init() {
   updateChallengeTab();
   updateChallengeSectionVisibility();
   initBreakInfinity();
-  switchTab('main');
-  gameLoop();
+  if (typeof AudioSystem !== 'undefined') AudioSystem.initOnFirstInteraction();
+
+  // オフライン進行のチェック（十分な経過時間があれば専用画面を表示し、
+  // 「開始」または「スキップ」が完了してから通常のゲームループへ進む）
+  if (typeof checkAndShowOfflineProgress === 'function') {
+    checkAndShowOfflineProgress();
+  } else {
+    switchTab('main');
+    gameLoop();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ページを離れる際にできるだけ正確な終了時刻を保存する（オフライン進行の計算精度のため）
+window.addEventListener('beforeunload', () => {
+  try { saveGame(true); } catch(e) {}
+});

@@ -34,6 +34,30 @@
   <!-- トースト通知（セーブ・実績解除など、ゲーム全体で使う共通通知） -->
   <div id="toast-container" class="toast-container"></div>
 
+  <!-- オフライン進行オーバーレイ -->
+  <div id="offline-overlay" class="modal-overlay">
+    <div class="modal-box offline-box">
+      <h3 class="modal-title">オフライン進行</h3>
+      <div class="offline-row">
+        <span class="offline-label">オフライン時間</span>
+        <span class="offline-value" id="offline-time-display">00:00:00</span>
+      </div>
+      <div class="offline-row">
+        <span class="offline-label">現在</span>
+        <span class="offline-value" id="offline-progress-display">0%</span>
+      </div>
+      <div class="offline-progress-bar"><div id="offline-progress-fill" class="offline-progress-fill"></div></div>
+
+      <div class="offline-speed-label">速度</div>
+      <div id="offline-speed-buttons" class="offline-speed-buttons"><!-- JSで生成されます --></div>
+
+      <div class="modal-actions" style="margin-top:16px;">
+        <button id="offline-start-btn" class="ui-btn primary" onclick="startOfflineSimulation()">開始</button>
+        <button id="offline-skip-btn" class="ui-btn" onclick="skipOfflineSimulation()">スキップ</button>
+      </div>
+    </div>
+  </div>
+
   <!-- =========================================
      メインレイアウト
      サイドバーは廃止し、画面全体を切り替えるナビゲーション方式に変更
@@ -47,6 +71,7 @@
         <button class="tab-btn" onclick="switchTab('stats', this)">統計</button>
         <button class="tab-btn" onclick="switchTab('achievements', this)">実績</button>
         <button class="tab-btn" onclick="switchTab('shop', this)">ショップ</button>
+        <button class="tab-btn" onclick="switchTab('timeflux', this)">Time Flux</button>
         <!-- Infinityタブ（初期は非表示） -->
         <button class="tab-btn" id="tab-btn-infinity" onclick="switchTab('infinity', this)" style="display:none; color:#d500f9; border-color:#d500f9;">∞ INFINITY</button>
         <!-- チャレンジタブ（Big Crunch 5回以上で解放） -->
@@ -189,6 +214,42 @@
         </div>
       </section>
 
+      <!-- Time Flux画面 -->
+      <section id="tab-timeflux" class="sidebar-content screen-page">
+        <h3>Time Flux</h3>
+        <div class="inf-header-info" style="border-color:var(--color-main);">
+          <p style="font-size:1.1rem;">
+            <span id="tf-time-display" style="color:var(--color-main); font-weight:bold;">00:00:00</span>
+            /
+            <span id="tf-max-display">01:00:00</span>
+          </p>
+        </div>
+        <div class="tf-progress-bar"><div id="tf-progress-fill" class="tf-progress-fill"></div></div>
+
+        <h4 style="margin-top:25px; color:var(--color-main); border-bottom:1px solid var(--color-main); padding-bottom:5px;">Time Warp（TFを消費して倍速進行）</h4>
+        <p style="font-size:0.75rem; color:#888; margin:8px 0;">
+          現在倍率: <span id="tf-current-speed" style="color:var(--color-main); font-weight:bold;">×1</span>
+          （倍率と同じ秒数のTFを毎秒消費します。TFが尽きると自動的に×1へ戻ります）
+        </p>
+        <div id="tf-speed-buttons" class="tf-speed-buttons"><!-- JSで生成されます --></div>
+
+        <h4 style="margin-top:25px; color:var(--color-main); border-bottom:1px solid var(--color-main); padding-bottom:5px;">TFアップグレード（上限強化）</h4>
+        <p style="font-size:0.75rem; color:#888; margin:8px 0;">
+          現在の上限の2/3のTFを消費して、TFの上限を2倍にします。
+        </p>
+        <div class="stat-row">
+          <span class="stat-label">強化Lv</span>
+          <span class="stat-val" id="tf-cap-level-display">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">次の上限</span>
+          <span class="stat-val" id="tf-cap-next-display">02:00:00</span>
+        </div>
+        <button id="tf-cap-upgrade-btn" class="ui-btn primary" style="margin-top:10px;" onclick="buyTFCapUpgrade()">
+          上限を2倍にする（消費: <span id="tf-cap-cost-display">00:40:00</span>）
+        </button>
+      </section>
+
       <!-- Automation画面（自動化のみ） -->
       <section id="tab-automation" class="sidebar-content screen-page">
         <h3>Accelerator自動購入</h3>
@@ -206,6 +267,7 @@
           </select>
         </div>
         <div id="glitch-toggle-container"><!-- JSで生成されます --></div>
+        <div id="audio-toggle-container"><!-- JSで生成されます --></div>
 
         <h3>演出スキップ</h3>
         <div id="setting-toggles-container"><!-- JSで生成されます --></div>
@@ -268,6 +330,9 @@
               <strong>LIMIT BROKEN</strong><br>
               上限解除済み・1.78e308を超えて進行できます
             </div>
+            <div id="break-infinity-not-implemented-msg" style="display:none; color:#888; text-align:center; border:1px dashed #555; padding:15px; margin-top:10px;">
+              未実装
+            </div>
           </div>
 
           <div id="break-infinity-content">
@@ -285,7 +350,9 @@
     </div>
   </div>
 
+  <script src="audio.js"></script>
   <script src="breakinfinity.js"></script>
+  <script src="timeflux.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
