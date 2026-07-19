@@ -90,6 +90,10 @@ const I18N = {
     'shop.theme.lightblue': 'ライトブルー',
     'shop.theme.blue': 'ブルー',
     'shop.theme.purple': 'パープル',
+    'shop.theme.rainbow': 'レインボー',
+    'shop.theme.nature': '自然',
+    'shop.theme.neon': 'ネオン',
+    'shop.theme.space': '宇宙',
 
     // --- Time Flux画面 ---
     'tf.header': 'Time Flux',
@@ -445,6 +449,10 @@ const I18N = {
     'shop.theme.lightblue': 'Light Blue',
     'shop.theme.blue': 'Blue',
     'shop.theme.purple': 'Purple',
+    'shop.theme.rainbow': 'Rainbow',
+    'shop.theme.nature': 'Nature',
+    'shop.theme.neon': 'Neon',
+    'shop.theme.space': 'Cosmos',
 
     // --- Time Flux screen ---
     'tf.header': 'Time Flux',

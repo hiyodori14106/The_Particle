@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@300;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@300;500;700&family=Merriweather:wght@400;700&family=Orbitron:wght@400;600;800&family=Audiowide&display=swap');
 
 :root {
   --bg-core: #050507;
@@ -653,3 +653,136 @@ body.glitched { animation: shake 0.2s infinite; }
   100% { left: 0%; transform: translateX(-100vw); }
 }
 .btn-pressed { transform: scale(0.95) !important; border-color: #fff !important; box-shadow: 0 0 15px #fff !important; }
+
+/* ========================================================
+   特殊テーマ（ショップで購入・単色スワップとは別枠）
+   --color-main / --color-main-rgb を含む複数のCSS変数と
+   背景・フォントを一括で上書きする。
+   ======================================================== */
+
+/* レインボー: --color-main / --color-main-rgb をJS側で継続的に更新することで
+   色を変化させる（script.jsのstartRainbowAnimation参照）。
+   filterでの一括色相回転はやめた：背景色やgold/dangerなど無関係な色まで
+   ズレて見えてしまうため、単色テーマと全く同じ仕組み（--color-main経由）だけで
+   色を変える。 */
+
+/* 自然テーマ: 森・自然のイメージ */
+body.theme-nature {
+  --bg-core: #0c150f;
+  --bg-sidebar: rgba(12, 20, 12, 0.95);
+  --color-main: #7ed957;
+  --color-main-rgb: 126, 217, 87;
+  --color-accent: #a9c94a;
+  --color-gold: #d8a34d;
+  --color-danger: #e0563f;
+  --color-infinity: #4d7c3a;
+  --text-primary: #e7f2df;
+  --text-dim: #8fae7d;
+  --font-tech: 'Merriweather', serif;
+  background-color: var(--bg-core);
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(126, 217, 87, 0.10) 0%, transparent 45%),
+    radial-gradient(circle at 80% 85%, rgba(120, 80, 30, 0.18) 0%, transparent 55%),
+    linear-gradient(180deg, #0c150f 0%, #16220f 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='190' viewBox='0 0 400 190'><g fill='%230a1f0f'><polygon points='40,190 40,90 20,90 60,30 100,90 80,90 80,190'/><polygon points='120,190 120,80 95,80 145,20 195,80 170,80 170,190'/><circle cx='260' cy='120' r='48'/><rect x='249' y='150' width='22' height='40'/><polygon points='330,190 330,100 305,100 355,40 405,100 380,100 380,190'/></g></svg>");
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat-x;
+  background-position: 0 0, 0 0, 0 0, bottom;
+  background-size: auto, auto, auto, 400px 190px;
+}
+
+/* ネオンテーマ: ネオンサインのイメージ */
+body.theme-neon {
+  --bg-core: #05010a;
+  --bg-sidebar: rgba(10, 4, 18, 0.95);
+  --color-main: #ff2fd0;
+  --color-main-rgb: 255, 47, 208;
+  --color-accent: #00f0ff;
+  --color-gold: #f9f871;
+  --color-danger: #ff2e63;
+  --color-infinity: #7b2ff7;
+  --text-primary: #f3e8ff;
+  --text-dim: #a98fd1;
+  --font-tech: 'Orbitron', sans-serif;
+  background-color: var(--bg-core);
+  background-image:
+    radial-gradient(circle at 30% 20%, rgba(255, 47, 208, 0.18) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(0, 240, 255, 0.18) 0%, transparent 50%),
+    linear-gradient(180deg, #05010a 0%, #0d0018 100%);
+}
+
+/* 宇宙テーマ: 星空・宇宙のイメージ */
+body.theme-space {
+  --bg-core: #05061a;
+  --bg-sidebar: rgba(6, 8, 28, 0.95);
+  --color-main: #8fd3ff;
+  --color-main-rgb: 143, 211, 255;
+  --color-accent: #b592ff;
+  --color-gold: #ffd76a;
+  --color-danger: #ff5d7a;
+  --color-infinity: #b592ff;
+  --text-primary: #e6ecff;
+  --text-dim: #7f8bc9;
+  --font-tech: 'Audiowide', sans-serif;
+  background-color: var(--bg-core);
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 30% 70%, #fff, transparent),
+    radial-gradient(1px 1px at 50% 30%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 70% 85%, #fff, transparent),
+    radial-gradient(1px 1px at 90% 15%, #fff, transparent),
+    radial-gradient(1px 1px at 15% 90%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 85% 45%, #fff, transparent),
+    radial-gradient(circle at 50% 50%, #171a44 0%, #05061a 100%);
+}
+
+/* 宇宙テーマ: 星が流れるように動くレイヤー（静止した遠景の星の上に重ねる） */
+body.theme-space::after {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  background-repeat: repeat;
+  background-size: 350px 220px;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20px 30px, #fff, transparent),
+    radial-gradient(1px 1px at 90px 60px, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 150px 20px, #fff, transparent),
+    radial-gradient(1px 1px at 200px 90px, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 250px 150px, #fff, transparent),
+    radial-gradient(1px 1px at 30px 140px, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 280px 40px, #fff, transparent),
+    radial-gradient(1px 1px at 320px 170px, #fff, transparent),
+    radial-gradient(2px 2px at 110px 190px, #fff, transparent);
+  animation: theme-space-drift 100s linear infinite, theme-space-twinkle 3.5s ease-in-out infinite alternate;
+}
+@keyframes theme-space-drift {
+  from { background-position: 0 0; }
+  to   { background-position: -350px 220px; }
+}
+@keyframes theme-space-twinkle {
+  from { opacity: 0.55; }
+  to   { opacity: 1; }
+}
+
+/* 自然テーマ: 落ち葉パーティクル（JSで #nature-leaves-layer に生成される） */
+#nature-leaves-layer {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+}
+.nature-leaf {
+  position: absolute;
+  top: -10%;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+  animation-name: nature-leaf-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+@keyframes nature-leaf-fall {
+  0%   { transform: translate(0, -10vh) rotate(0deg); opacity: 0.95; }
+  25%  { transform: translate(var(--leaf-sway, 30px), 22vh) rotate(90deg); }
+  50%  { transform: translate(0, 50vh) rotate(180deg); }
+  75%  { transform: translate(calc(var(--leaf-sway, 30px) * -1), 78vh) rotate(270deg); }
+  100% { transform: translate(0, 112vh) rotate(360deg); opacity: 0.5; }
+}

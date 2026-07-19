@@ -382,7 +382,9 @@ function getDefaultChallengeState() {
 // --- ショップ: テーマ定義 ---
 // id: セーブデータ・DOM要素IDに使う識別子 / nameKey: i18nキー
 // color: --color-main に設定するHEX値 / rgb: rgba(var(--color-main-rgb),x) 用の "r, g, b"
-// cost: 購入に必要なIP（デフォルトテーマのみ0＝最初から所持）
+// cost: 購入に必要なAP（デフォルトテーマのみ0＝最初から所持）
+// special: trueの場合、単色スワップではなく<body>にcssClassを付与し、
+//          背景・フォント・複数の配色を一括で切り替える特殊テーマとして扱う
 const THEMES = [
   { id: 'default',    nameKey: 'shop.theme.default',    color: '#00ff9d', rgb: '0, 255, 157',  cost: 0 },
   { id: 'red',        nameKey: 'shop.theme.red',        color: '#ff3b3b', rgb: '255, 59, 59',   cost: 50 },
@@ -393,7 +395,12 @@ const THEMES = [
   { id: 'emerald',    nameKey: 'shop.theme.emerald',    color: '#00bfa5', rgb: '0, 191, 165',   cost: 50 },
   { id: 'lightblue',  nameKey: 'shop.theme.lightblue',  color: '#00b0ff', rgb: '0, 176, 255',   cost: 50 },
   { id: 'blue',       nameKey: 'shop.theme.blue',       color: '#2979ff', rgb: '41, 121, 255',  cost: 50 },
-  { id: 'purple',     nameKey: 'shop.theme.purple',     color: '#b388ff', rgb: '179, 136, 255', cost: 50 }
+  { id: 'purple',     nameKey: 'shop.theme.purple',     color: '#b388ff', rgb: '179, 136, 255', cost: 50 },
+  // --- 特殊テーマ（背景・フォント・複数配色を一括変更） ---
+  { id: 'rainbow', nameKey: 'shop.theme.rainbow', color: '#ff2fd0', rgb: '255, 47, 208', cost: 130, special: true, cssClass: 'theme-rainbow' },
+  { id: 'nature',  nameKey: 'shop.theme.nature',  color: '#7ed957', rgb: '126, 217, 87', cost: 200, special: true, cssClass: 'theme-nature' },
+  { id: 'neon',    nameKey: 'shop.theme.neon',    color: '#ff2fd0', rgb: '255, 47, 208', cost: 200, special: true, cssClass: 'theme-neon' },
+  { id: 'space',   nameKey: 'shop.theme.space',   color: '#8fd3ff', rgb: '143, 211, 255', cost: 200, special: true, cssClass: 'theme-space' }
 ];
 function getThemeName(theme) { return t(theme.nameKey); }
 
@@ -1986,12 +1993,118 @@ function updateShopTab() {
 
 // --- テーマ ---
 
+// --- レインボーテーマ: --color-main / --color-main-rgb を継続的に更新して色を変化させる ---
+// 単色テーマの切り替えと全く同じ「--color-mainを書き換える」だけの仕組みを使うことで、
+// 背景色やgold/danger等の無関係な色が場所によってズレて見えることがないようにする
+// （filter:hue-rotate()で画面全体を回すと、無関係な色までズレてしまうため使わない）。
+let rainbowAnimTimer = null;
+let rainbowHue = 0;
+
+function hslToRgbComponents(h, s, l) {
+  h = (h % 360) / 360;
+  const hue2rgb = (p, q, tt) => {
+    let t = tt;
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const r = hue2rgb(p, q, h + 1 / 3);
+  const g = hue2rgb(p, q, h);
+  const b = hue2rgb(p, q, h - 1 / 3);
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function startRainbowAnimation() {
+  if (rainbowAnimTimer) return; // 既に動作中なら何もしない
+  const root = document.documentElement;
+  rainbowAnimTimer = setInterval(() => {
+    rainbowHue = (rainbowHue + 1) % 360;
+    const [r, g, b] = hslToRgbComponents(rainbowHue, 1, 0.6);
+    root.style.setProperty('--color-main', `rgb(${r}, ${g}, ${b})`);
+    root.style.setProperty('--color-main-rgb', `${r}, ${g}, ${b}`);
+  }, 80); // 360ステップ×80ms ≒ 約29秒で一周
+}
+
+function stopRainbowAnimation() {
+  if (rainbowAnimTimer) { clearInterval(rainbowAnimTimer); rainbowAnimTimer = null; }
+}
+
+// --- 自然テーマ: 落ち葉のパーティクルを継続的に生成する ---
+let natureLeafTimer = null;
+let natureLeafLayer = null;
+
+function ensureNatureLeafLayer() {
+  if (natureLeafLayer && document.body.contains(natureLeafLayer)) return natureLeafLayer;
+  const layer = document.createElement('div');
+  layer.id = 'nature-leaves-layer';
+  document.body.appendChild(layer);
+  natureLeafLayer = layer;
+  return layer;
+}
+
+function spawnNatureLeaf() {
+  const layer = ensureNatureLeafLayer();
+  const leaf = document.createElement('div');
+  leaf.className = 'nature-leaf';
+  leaf.textContent = Math.random() < 0.5 ? '🍂' : '🍃';
+  const duration = 8 + Math.random() * 6; // 8〜14秒かけて落ちる
+  const sway = 20 + Math.random() * 40;   // 揺れ幅(px)
+  const size = 14 + Math.random() * 10;
+  leaf.style.left = `${Math.random() * 100}vw`;
+  leaf.style.fontSize = `${size}px`;
+  leaf.style.setProperty('--leaf-sway', `${sway}px`);
+  leaf.style.animationDuration = `${duration}s`;
+  layer.appendChild(leaf);
+  setTimeout(() => { if (leaf.parentNode) leaf.parentNode.removeChild(leaf); }, (duration + 0.5) * 1000);
+}
+
+function startNatureAnimation() {
+  if (natureLeafTimer) return; // 既に動作中なら何もしない
+  ensureNatureLeafLayer();
+  spawnNatureLeaf();
+  natureLeafTimer = setInterval(spawnNatureLeaf, 700);
+}
+
+function stopNatureAnimation() {
+  if (natureLeafTimer) { clearInterval(natureLeafTimer); natureLeafTimer = null; }
+  if (natureLeafLayer) {
+    natureLeafLayer.remove();
+    natureLeafLayer = null;
+  }
+}
+
 // game.themes.selected の色を実際にCSS変数へ反映する
 function applyTheme(id) {
   const theme = THEMES.find(th => th.id === id) || THEMES[0];
   const root = document.documentElement;
-  root.style.setProperty('--color-main', theme.color);
-  root.style.setProperty('--color-main-rgb', theme.rgb);
+
+  // レインボー／自然以外に切り替えたら、それぞれのアニメーションを必ず停止する
+  if (theme.id !== 'rainbow') stopRainbowAnimation();
+  if (theme.id !== 'nature') stopNatureAnimation();
+
+  // 特殊テーマ（背景・フォント一括変更）用のbodyクラスを管理する。
+  // 単色テーマに切り替えたときは、以前の特殊テーマのクラスを必ず外す。
+  const body = document.body;
+  if (body) {
+    THEMES.forEach(th => { if (th.cssClass) body.classList.remove(th.cssClass); });
+    if (theme.special && theme.cssClass) body.classList.add(theme.cssClass);
+  }
+
+  if (theme.id === 'rainbow') {
+    // レインボーは単色スワップと同じ--color-main/--color-main-rgbを、
+    // JSで継続的に書き換えることで色を変化させる（他の色には一切触れない）
+    startRainbowAnimation();
+  } else {
+    root.style.setProperty('--color-main', theme.color);
+    root.style.setProperty('--color-main-rgb', theme.rgb);
+  }
+
+  if (theme.id === 'nature') startNatureAnimation();
 }
 
 function updateThemeGrid() {
