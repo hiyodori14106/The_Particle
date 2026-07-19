@@ -10,6 +10,24 @@
 </head>
 <body>
 
+  <!-- 起動演出（ロゴ表示） -->
+  <div id="boot-splash">
+    <h1>the-Particle</h1>
+    <p>INITIALIZING SYSTEM...</p>
+  </div>
+
+  <!-- 初回起動時の言語選択 -->
+  <div id="lang-select-overlay" class="modal-overlay">
+    <div class="modal-box">
+      <h3 class="modal-title">Language / 言語</h3>
+      <div class="modal-body">Please select your language.<br>言語を選択してください。</div>
+      <div class="modal-actions">
+        <button type="button" class="ui-btn primary" onclick="selectInitialLang('ja')">日本語</button>
+        <button type="button" class="ui-btn primary" onclick="selectInitialLang('en')">English</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 演出用レイヤー -->
   <div id="glitch-layer" class="glitch-overlay"></div>
 
@@ -17,8 +35,8 @@
     <div class="event-horizon"></div>
     <div class="singularity"></div>
     <div class="crunch-message">
-      <h1>BIG CRUNCH</h1>
-      <p>宇宙データを再構築中...</p>
+      <h1 data-i18n="main.crunchTitle">BIG CRUNCH</h1>
+      <p data-i18n="main.crunchMessage">宇宙データを再構築中...</p>
     </div>
   </div>
 
@@ -37,23 +55,23 @@
   <!-- オフライン進行オーバーレイ -->
   <div id="offline-overlay" class="modal-overlay">
     <div class="modal-box offline-box">
-      <h3 class="modal-title">オフライン進行</h3>
+      <h3 class="modal-title" data-i18n="offline.title">オフライン進行</h3>
       <div class="offline-row">
-        <span class="offline-label">オフライン時間</span>
+        <span class="offline-label" data-i18n="offline.timeLabel">オフライン時間</span>
         <span class="offline-value" id="offline-time-display">00:00:00</span>
       </div>
       <div class="offline-row">
-        <span class="offline-label">現在</span>
+        <span class="offline-label" data-i18n="offline.currentLabel">現在</span>
         <span class="offline-value" id="offline-progress-display">0%</span>
       </div>
       <div class="offline-progress-bar"><div id="offline-progress-fill" class="offline-progress-fill"></div></div>
 
-      <div class="offline-speed-label">速度</div>
+      <div class="offline-speed-label" data-i18n="offline.speedLabel">速度</div>
       <div id="offline-speed-buttons" class="offline-speed-buttons"><!-- JSで生成されます --></div>
 
       <div class="modal-actions" style="margin-top:16px;">
-        <button id="offline-start-btn" class="ui-btn primary" onclick="startOfflineSimulation()">開始</button>
-        <button id="offline-skip-btn" class="ui-btn" onclick="skipOfflineSimulation()">スキップ</button>
+        <button id="offline-start-btn" class="ui-btn primary" data-i18n="offline.startBtn" onclick="startOfflineSimulation()">開始</button>
+        <button id="offline-skip-btn" class="ui-btn" data-i18n="offline.skipBtn" onclick="skipOfflineSimulation()">スキップ</button>
       </div>
     </div>
   </div>
@@ -67,17 +85,17 @@
     <!-- 上部ナビゲーション（画面切り替え） -->
     <nav class="main-nav">
       <div class="tab-container main-tab-container">
-        <button class="tab-btn active" onclick="switchTab('main', this)">メイン</button>
-        <button class="tab-btn" onclick="switchTab('stats', this)">統計</button>
-        <button class="tab-btn" onclick="switchTab('achievements', this)">実績</button>
-        <button class="tab-btn" onclick="switchTab('shop', this)">ショップ</button>
-        <button class="tab-btn" onclick="switchTab('timeflux', this)">Time Flux</button>
+        <button class="tab-btn active" data-i18n="nav.main" onclick="switchTab('main', this)">メイン</button>
+        <button class="tab-btn" data-i18n="nav.stats" onclick="switchTab('stats', this)">統計</button>
+        <button class="tab-btn" data-i18n="nav.achievements" onclick="switchTab('achievements', this)">実績</button>
+        <button class="tab-btn" data-i18n="nav.shop" onclick="switchTab('shop', this)">ショップ</button>
+        <button class="tab-btn" data-i18n="nav.timeflux" onclick="switchTab('timeflux', this)">Time Flux</button>
         <!-- Infinityタブ（初期は非表示） -->
-        <button class="tab-btn" id="tab-btn-infinity" onclick="switchTab('infinity', this)" style="display:none; color:#d500f9; border-color:#d500f9;">∞ INFINITY</button>
+        <button class="tab-btn" id="tab-btn-infinity" data-i18n="nav.infinity" onclick="switchTab('infinity', this)" style="display:none; color:#d500f9; border-color:#d500f9;">∞ INFINITY</button>
         <!-- チャレンジタブ（Big Crunch 5回以上で解放） -->
-        <button class="tab-btn" id="tab-btn-challenge" onclick="switchTab('challenge', this)" style="display:none;">チャレンジ</button>
-        <button class="tab-btn" id="tab-btn-automation" onclick="switchTab('automation', this)" style="display:none;">自動化</button>
-        <button class="tab-btn" onclick="switchTab('settings', this)">設定</button>
+        <button class="tab-btn" id="tab-btn-challenge" data-i18n="nav.challenge" onclick="switchTab('challenge', this)" style="display:none;">チャレンジ</button>
+        <button class="tab-btn" id="tab-btn-automation" data-i18n="nav.automation" onclick="switchTab('automation', this)" style="display:none;">自動化</button>
+        <button class="tab-btn" data-i18n="nav.settings" onclick="switchTab('settings', this)">設定</button>
       </div>
     </nav>
 
@@ -93,7 +111,7 @@
         </div>
 
         <header>
-          <h1>the-Particle</h1>
+          <h1 data-i18n="main.title">the-Particle</h1>
           <div class="currency-row">
             <div class="currency-container">
               <h2 id="particle-display">0 粒子</h2>
@@ -102,28 +120,36 @@
 
             <div id="prestige-container" class="linac-inline" style="display: none;">
               <span id="linac-mult-inline" class="linac-mult">x1.20</span>
-              <button id="btn-linac" class="linac-btn" onclick="doLinac()">ライナック</button>
-              <button id="btn-shift" class="linac-btn shift" onclick="doLinacShift()" style="display:none;">シフト</button>
+              <button id="btn-linac" class="linac-btn" data-i18n="main.linac" onclick="doLinac()">ライナック</button>
+              <button id="btn-shift" class="linac-btn shift" data-i18n="main.shift" onclick="doLinacShift()" style="display:none;">シフト</button>
             </div>
           </div>
 
           <div id="ip-display-container" style="display:none;">
-            IP: <span id="ip-val">0</span>
+            <span data-i18n="main.ipLabel">IP:</span> <span id="ip-val">0</span>
+          </div>
+
+          <div id="infinity-progress-container" class="inf-progress-wrap">
+            <div class="inf-progress-label">
+              <span data-i18n="main.infinityProgressLabel">Infinityまでの進捗</span>
+              <span id="infinity-progress-percent">0%</span>
+            </div>
+            <div class="inf-progress-bar"><div id="infinity-progress-fill" class="inf-progress-fill"></div></div>
           </div>
         </header>
 
         <div id="shift-status" class="shift-bar" style="display: none;">
-          現在のライナック倍率: <span id="shift-mult-display" style="color:#00e676; font-weight:bold;">x1.2</span>
-          <span style="font-size:0.8em; color:#888; margin-left:10px;">(シフト回数: <span id="shift-count">0</span>)</span>
+          <span data-i18n="main.currentShiftMult">現在のライナック倍率:</span> <span id="shift-mult-display" style="color:#00e676; font-weight:bold;">x1.2</span>
+          <span style="font-size:0.8em; color:#888; margin-left:10px;" id="shift-count"></span>
         </div>
 
         <div class="control-bar">
-          <span class="control-label">購入数:</span>
+          <span class="control-label" data-i18n="main.buyAmountLabel">購入数:</span>
           <div class="toggle-group">
             <button class="toggle-btn active" onclick="setBuyAmount(1)" id="buy-1">x1</button>
             <button class="toggle-btn" onclick="setBuyAmount(10)" id="buy-10">x10</button>
             <button class="toggle-btn" onclick="setBuyAmount(100)" id="buy-100">x100</button>
-            <button class="toggle-btn" onclick="setBuyAmount('max')" id="buy-max">最大購入</button>
+            <button class="toggle-btn" data-i18n="main.buyMax" onclick="setBuyAmount('max')" id="buy-max">最大購入</button>
           </div>
         </div>
 
@@ -132,63 +158,63 @@
 
       <!-- 統計画面 -->
       <section id="tab-stats" class="sidebar-content screen-page">
-        <h3>基本</h3>
+        <h3 data-i18n="stats.basicHeader">基本</h3>
         <div class="stat-row">
-          <span class="stat-label">経過時間(現在の宇宙)</span>
+          <span class="stat-label" data-i18n="stats.elapsedTime">経過時間(現在の宇宙)</span>
           <span id="stat-time" class="stat-val">00:00:00</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">総プレイ時間(全リセット含む)</span>
+          <span class="stat-label" data-i18n="stats.totalPlaytime">総プレイ時間(全リセット含む)</span>
           <span id="stat-total-playtime" class="stat-val">00:00:00</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">総粒子生産量</span>
+          <span class="stat-label" data-i18n="stats.totalProduced">総粒子生産量</span>
           <span id="stat-total" class="stat-val">0 粒子</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">現在のPPS</span>
+          <span class="stat-label" data-i18n="stats.currentPPS">現在のPPS</span>
           <span id="stat-current-pps" class="stat-val">0.00 /秒</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">最高PPS</span>
+          <span class="stat-label" data-i18n="stats.highestPPS">最高PPS</span>
           <span id="stat-highest-pps" class="stat-val">0.00 /秒</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">最高粒子数</span>
+          <span class="stat-label" data-i18n="stats.highestParticles">最高粒子数</span>
           <span id="stat-highest-particles" class="stat-val">0</span>
         </div>
 
-        <h3>Linac</h3>
+        <h3 data-i18n="stats.linacHeader">Linac</h3>
         <div class="stat-row" id="row-prestige" style="display:none;">
-          <span class="stat-label">総Linac回数</span>
+          <span class="stat-label" data-i18n="stats.totalLinacs">総Linac回数</span>
           <span id="stat-prestige" class="stat-val">0 回</span>
         </div>
         <div class="stat-row" id="row-shortest-linac" style="display:none;">
-          <span class="stat-label">最短Linac時間</span>
+          <span class="stat-label" data-i18n="stats.shortestLinac">最短Linac時間</span>
           <span id="stat-shortest-linac" class="stat-val">--:--:--</span>
         </div>
         <div class="stat-row" id="row-best-linac-mult" style="display:none;">
-          <span class="stat-label">Linac最高倍率</span>
+          <span class="stat-label" data-i18n="stats.bestLinacMult">Linac最高倍率</span>
           <span id="stat-best-linac-mult" class="stat-val">x1.00</span>
         </div>
 
-        <h3>Shift</h3>
+        <h3 data-i18n="stats.shiftHeader">Shift</h3>
         <div class="stat-row" id="row-shift" style="display:none;">
-          <span class="stat-label">総Shift回数</span>
+          <span class="stat-label" data-i18n="stats.totalShifts">総Shift回数</span>
           <span id="stat-shift" class="stat-val">0 回</span>
         </div>
 
-        <h3>Accelerator</h3>
+        <h3 data-i18n="stats.acceleratorHeader">Accelerator</h3>
         <div id="accel-stats-list"><!-- JSで生成されます --></div>
 
         <div id="infinity-stats" style="display:none; margin-top: 20px; border-top: 1px dashed #555; padding-top:10px;">
-          <h3 style="color:#d500f9;">宇宙統計</h3>
+          <h3 style="color:#d500f9;" data-i18n="stats.universeHeader">宇宙統計</h3>
           <div class="stat-row">
-            <span class="stat-label">Big Crunch 回数</span>
+            <span class="stat-label" data-i18n="stats.crunchCount">Big Crunch 回数</span>
             <span id="stat-crunch" class="stat-val">0 回</span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">Infinity到達(最短)</span>
+            <span class="stat-label" data-i18n="stats.bestInfinity">Infinity到達(最短)</span>
             <span id="stat-best-inf" class="stat-val">--:--:--</span>
           </div>
         </div>
@@ -196,27 +222,29 @@
 
       <!-- 実績画面 -->
       <section id="tab-achievements" class="sidebar-content screen-page">
-        <h3>実績</h3>
-        <p style="font-size:0.8rem; color:#888; margin:-8px 0 15px 0;">
+        <h3 data-i18n="ach.header">実績</h3>
+        <p style="font-size:0.8rem; color:#888; margin:-8px 0 15px 0;" id="ach-count-text">
           解除済み: <span id="ach-unlocked-count">0</span> / <span id="ach-total-count">0</span>
         </p>
         <div id="achievements-list" class="ach-grid"><!-- JSで生成されます --></div>
       </section>
 
-      <!-- ショップ画面（実績ポイント/APを表示） -->
+      <!-- ショップ画面（実績ポイント/APを表示し、テーマ購入ができる） -->
       <section id="tab-shop" class="sidebar-content screen-page">
-        <h3>ショップ</h3>
+        <h3 data-i18n="shop.header">ショップ</h3>
         <div class="inf-header-info" style="border-color:var(--color-gold);">
-          <p>所持 AP: <span id="shop-ap-display" style="color:var(--color-gold); font-weight:bold; font-size:1.2rem;">0</span></p>
+          <p><span data-i18n="shop.apLabel">所持 AP:</span> <span id="shop-ap-display" style="color:var(--color-gold); font-weight:bold; font-size:1.2rem;">0</span></p>
         </div>
         <div id="shop-items-container">
-          <p style="color:#888; text-align:center; margin-top:40px;">Coming Soon...</p>
+          <h4 style="margin:20px 0 4px 0; color:#ccc;" data-i18n="shop.themeHeader">テーマ</h4>
+          <p style="font-size:0.75rem; color:#888; margin:0 0 4px 0;" data-i18n="shop.themeDesc">APを消費して画面のテーマカラーを変更できます</p>
+          <div id="theme-grid" class="theme-grid"><!-- JSで生成されます --></div>
         </div>
       </section>
 
       <!-- Time Flux画面 -->
       <section id="tab-timeflux" class="sidebar-content screen-page">
-        <h3>Time Flux</h3>
+        <h3 data-i18n="tf.header">Time Flux</h3>
         <div class="inf-header-info" style="border-color:var(--color-main);">
           <p style="font-size:1.1rem;">
             <span id="tf-time-display" style="color:var(--color-main); font-weight:bold;">00:00:00</span>
@@ -226,87 +254,103 @@
         </div>
         <div class="tf-progress-bar"><div id="tf-progress-fill" class="tf-progress-fill"></div></div>
 
-        <h4 style="margin-top:25px; color:var(--color-main); border-bottom:1px solid var(--color-main); padding-bottom:5px;">Time Warp（TFを消費して倍速進行）</h4>
+        <h4 style="margin-top:25px; color:var(--color-main); border-bottom:1px solid var(--color-main); padding-bottom:5px;" data-i18n="tf.upgradeHeader">TFアップグレード</h4>
+        <p style="font-size:0.75rem; color:#888; margin:8px 0;" data-i18n="tf.upgradeDesc">TFの最大所持量を2倍にします。コストは現在の最大値の2/3のTFです。</p>
+        <div class="inf-header-info" style="border-color:var(--color-main);">
+          <p style="font-size:0.85rem; margin:4px 0;" id="tf-cap-current-display"></p>
+          <p style="font-size:0.85rem; margin:4px 0;" id="tf-cap-next-display"></p>
+          <p style="font-size:0.85rem; margin:4px 0;" id="tf-cap-cost-display"></p>
+          <button id="tf-cap-upgrade-btn" class="ui-btn primary" style="margin-top:10px;" onclick="buyTFCapUpgrade()" data-i18n="tf.upgradeBtn">上限を強化</button>
+          <span id="tf-cap-level-display" style="display:none;"></span>
+        </div>
+
+        <h4 style="margin-top:25px; color:var(--color-main); border-bottom:1px solid var(--color-main); padding-bottom:5px;" data-i18n="tf.warpHeader">Time Warp（TFを消費して倍速進行）</h4>
         <p style="font-size:0.75rem; color:#888; margin:8px 0;">
-          現在倍率: <span id="tf-current-speed" style="color:var(--color-main); font-weight:bold;">×1</span>
-          （倍率と同じ秒数のTFを毎秒消費します。TFが尽きると自動的に×1へ戻ります）
+          <span data-i18n="tf.currentSpeed">現在倍率:</span> <span id="tf-current-speed" style="color:var(--color-main); font-weight:bold;">×1</span>
+          <span data-i18n="tf.warpDesc">（倍率と同じ秒数のTFを毎秒消費します。TFが尽きると自動的に×1へ戻ります）</span>
         </p>
         <div id="tf-speed-buttons" class="tf-speed-buttons"><!-- JSで生成されます --></div>
-
-        <h4 style="margin-top:25px; color:var(--color-main); border-bottom:1px solid var(--color-main); padding-bottom:5px;">TFアップグレード（上限強化）</h4>
-        <p style="font-size:0.75rem; color:#888; margin:8px 0;">
-          現在の上限の2/3のTFを消費して、TFの上限を2倍にします。
-        </p>
-        <div class="stat-row">
-          <span class="stat-label">強化Lv</span>
-          <span class="stat-val" id="tf-cap-level-display">0</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-label">次の上限</span>
-          <span class="stat-val" id="tf-cap-next-display">02:00:00</span>
-        </div>
-        <button id="tf-cap-upgrade-btn" class="ui-btn primary" style="margin-top:10px;" onclick="buyTFCapUpgrade()">
-          上限を2倍にする（消費: <span id="tf-cap-cost-display">00:40:00</span>）
-        </button>
       </section>
 
       <!-- Automation画面（自動化のみ） -->
       <section id="tab-automation" class="sidebar-content screen-page">
-        <h3>Accelerator自動購入</h3>
+        <h3 data-i18n="auto.header">Accelerator自動購入</h3>
         <div id="auto-accel-list"><!-- JSで生成されます --></div>
+
+        <div id="auto-linac-container" style="display:none; margin-top:25px;">
+          <h3 data-i18n="auto.linacHeader">自動ライナック</h3>
+          <p style="font-size:0.75rem; color:#888; margin:8px 0;" data-i18n="auto.linacDesc">Challenge 3「初心に戻る」クリアの報酬です。Mk.8が必要数に達すると自動でライナックを実行します。</p>
+          <div id="auto-linac-toggle-container"><!-- JSで生成されます --></div>
+        </div>
       </section>
 
       <!-- 設定画面（表示・演出・UI設定のみ） -->
       <section id="tab-settings" class="sidebar-content screen-page">
-        <h3>表示設定</h3>
+        <h3 data-i18n="settings.displayHeader">表示設定</h3>
         <div class="select-wrapper">
           <select id="notation-select" onchange="changeNotation(this.value)">
-            <option value="sci">科学的単位 (1e10)</option>
-            <option value="eng">英語単位 (10 B)</option>
-            <option value="jp">日本語単位 (100億)</option>
+            <option value="sci" data-i18n="settings.notationSci">科学的単位 (1e10)</option>
+            <option value="eng" data-i18n="settings.notationEng">英語単位 (10 B)</option>
+            <option value="jp" data-i18n="settings.notationJp">日本語単位 (100億)</option>
+            <option value="raw" data-i18n="settings.notationRaw">実数表示 (12,345,678)</option>
+          </select>
+        </div>
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;" data-i18n="settings.particleSizeLabel">粒子数の表示サイズ</label>
+          <select id="particle-size-select" onchange="changeParticleDisplaySize(this.value)">
+            <option value="small" data-i18n="settings.particleSizeSmall">小</option>
+            <option value="medium" selected data-i18n="settings.particleSizeMedium">中</option>
+            <option value="large" data-i18n="settings.particleSizeLarge">大</option>
+          </select>
+        </div>
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;" data-i18n="settings.languageLabel">言語 / Language</label>
+          <select id="lang-select" onchange="setLang(this.value)">
+            <option value="ja">日本語</option>
+            <option value="en">English</option>
           </select>
         </div>
         <div id="glitch-toggle-container"><!-- JSで生成されます --></div>
         <div id="audio-toggle-container"><!-- JSで生成されます --></div>
 
-        <h3>演出スキップ</h3>
+        <h3 data-i18n="settings.skipHeader">演出スキップ</h3>
         <div id="setting-toggles-container"><!-- JSで生成されます --></div>
 
-        <h3>データ管理</h3>
-        <button class="ui-btn primary" onclick="saveGame()">データをセーブ</button>
-        <div class="status-text" id="save-status" style="margin-top:5px; font-size:0.8em; color:#888;">オートセーブ有効 (10秒毎)</div>
+        <h3 data-i18n="settings.dataHeader">データ管理</h3>
+        <button class="ui-btn primary" data-i18n="settings.saveBtn" onclick="saveGame()">データをセーブ</button>
+        <div class="status-text" id="save-status" style="margin-top:5px; font-size:0.8em; color:#888;" data-i18n="settings.autosaveStatus">オートセーブ有効 (10秒毎)</div>
 
-        <button class="ui-btn" onclick="exportSave()">セーブデータを書き出し</button>
-        <button class="ui-btn" onclick="toggleImportArea()">セーブデータを読み込み</button>
+        <button class="ui-btn" data-i18n="settings.exportBtn" onclick="exportSave()">セーブデータを書き出し</button>
+        <button class="ui-btn" data-i18n="settings.importBtn" onclick="toggleImportArea()">セーブデータを読み込み</button>
 
         <div id="io-area" style="display:none; margin-top:10px;">
-          <p style="font-size:0.8rem; color:#888; margin-bottom:5px;" id="io-label">データ文字列:</p>
-          <textarea id="save-textarea" placeholder="ここにセーブデータを貼り付け..."></textarea>
-          <button class="ui-btn primary" id="io-action-btn" onclick="confirmImport()">読み込む</button>
+          <p style="font-size:0.8rem; color:#888; margin-bottom:5px;" id="io-label" data-i18n="settings.dataLabel">データ文字列:</p>
+          <textarea id="save-textarea" data-i18n-placeholder="settings.dataPlaceholder" placeholder="ここにセーブデータを貼り付け..."></textarea>
+          <button class="ui-btn primary" id="io-action-btn" data-i18n="settings.importActionBtn" onclick="confirmImport()">読み込む</button>
         </div>
 
         <div class="danger-zone" style="margin-top:30px;">
-          <h4>危険ゾーン</h4>
-          <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">全ての進捗を完全に削除します。</p>
-          <button class="ui-btn danger" onclick="hardReset()">完全初期化</button>
+          <h4 data-i18n="settings.dangerHeader">危険ゾーン</h4>
+          <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;" data-i18n="settings.dangerDesc">全ての進捗を完全に削除します。</p>
+          <button class="ui-btn danger" data-i18n="settings.hardResetBtn" onclick="hardReset()">完全初期化</button>
         </div>
       </section>
 
       <!-- Infinity画面 -->
       <section id="tab-infinity" class="sidebar-content screen-page">
         <div class="inf-subtabs">
-          <button class="inf-subtab-btn active" onclick="switchInfinitySubTab('main', this)">Main</button>
-          <button class="inf-subtab-btn" onclick="switchInfinitySubTab('break', this)" style="color:#ff0055;">Break Infinity</button>
+          <button class="inf-subtab-btn active" data-i18n="inf.subMain" onclick="switchInfinitySubTab('main', this)">Main</button>
+          <button class="inf-subtab-btn" data-i18n="inf.subBreak" onclick="switchInfinitySubTab('break', this)" style="color:#ff0055;">Break Infinity</button>
         </div>
 
         <div id="inf-subtab-main" class="inf-subtab-content active">
           <div class="inf-header-info">
-            <h3 style="color:#d500f9; border-color:#d500f9;">Infinityアップデート</h3>
-            <p>所持 IP: <span id="inf-tab-ip-display" style="color:#fff; font-weight:bold;">0</span></p>
+            <h3 style="color:#d500f9; border-color:#d500f9;" data-i18n="inf.updateHeader">Infinityアップデート</h3>
+            <p><span data-i18n="inf.ipLabel">所持 IP:</span> <span id="inf-tab-ip-display" style="color:#fff; font-weight:bold;">0</span></p>
           </div>
 
           <div class="inf-section">
-            <h4>強化</h4>
+            <h4 data-i18n="inf.upgradeHeader">強化</h4>
             <div id="infinity-upgrades-container" class="inf-upgrade-grid">
               <!-- JSで生成されます -->
             </div>
@@ -315,23 +359,20 @@
 
         <div id="inf-subtab-break" class="inf-subtab-content">
           <div class="inf-section" id="break-infinity-unlock-section" style="display:none;">
-            <h4 style="color:#ff0055;">Break Infinity</h4>
-            <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;">
+            <h4 style="color:#ff0055;" data-i18n="bi.header">Break Infinity</h4>
+            <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;" data-i18n="bi.desc">
               粒子の上限(1.79e308)を解除し、さらに先へ進めるようになります。
             </p>
             <div class="stat-row">
-              <span class="stat-label">所持 IP</span>
+              <span class="stat-label" data-i18n="bi.currentIP">所持 IP</span>
               <span class="stat-val" id="bi-unlock-ip-display">0</span>
             </div>
             <button id="btn-break-infinity-unlock" class="ui-btn" style="border-color:#ff0055; color:#ff0055; margin-top:10px;" onclick="tryUnlockBreakInfinity()">
               上限を解除 (必要: 1.00e50 IP)
             </button>
             <div id="break-infinity-unlocked-msg" style="display:none; color:#ff0055; text-align:center; border:1px solid #ff0055; padding:10px;">
-              <strong>LIMIT BROKEN</strong><br>
-              上限解除済み・1.78e308を超えて進行できます
-            </div>
-            <div id="break-infinity-not-implemented-msg" style="display:none; color:#888; text-align:center; border:1px dashed #555; padding:15px; margin-top:10px;">
-              未実装
+              <strong data-i18n="bi.unlockedMsg1">LIMIT BROKEN</strong><br>
+              <span data-i18n="bi.unlockedMsg2">上限解除済み・1.78e308を超えて進行できます</span>
             </div>
           </div>
 
@@ -343,13 +384,14 @@
 
       <!-- チャレンジ画面 -->
       <section id="tab-challenge" class="sidebar-content screen-page">
-        <h3>チャレンジ</h3>
+        <h3 data-i18n="challenge.header">チャレンジ</h3>
         <div id="challenge-list"><!-- JSで生成されます --></div>
       </section>
 
     </div>
   </div>
 
+  <script src="i18n.js"></script>
   <script src="audio.js"></script>
   <script src="breakinfinity.js"></script>
   <script src="timeflux.js"></script>

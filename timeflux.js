@@ -64,6 +64,9 @@ function buyTFCapUpgrade() {
   if (typeof playSE === 'function') playSE('buy');
   if (typeof saveGame === 'function') saveGame(true);
   updateTimeFluxTab();
+  if (typeof showNotification === 'function') {
+    showNotification(t('notif.tfUpgradeTitle'), t('notif.tfUpgradeMsg', { max: formatTime(getTFMaxSeconds()) }), '⏱️');
+  }
 }
 
 // --- オフライン進行の起点: init()の最後から呼ばれる ---
@@ -102,7 +105,7 @@ function showOfflineOverlay() {
   const startBtn = document.getElementById('offline-start-btn');
   if (startBtn) {
     startBtn.disabled = false;
-    startBtn.textContent = '開始';
+    startBtn.textContent = t('offline.startBtn');
     startBtn.classList.remove('disabled');
   }
   overlay.classList.add('active');
@@ -154,7 +157,7 @@ function startOfflineSimulation() {
   offlineSimulating = true; // script.js側: 通知・重いDOM更新・SEを抑制するフラグ
 
   const startBtn = document.getElementById('offline-start-btn');
-  if (startBtn) { startBtn.disabled = true; startBtn.textContent = '進行中...'; startBtn.classList.add('disabled'); }
+  if (startBtn) { startBtn.disabled = true; startBtn.textContent = t('offline.inProgress'); startBtn.classList.add('disabled'); }
 
   offlineStep();
 }
@@ -220,7 +223,7 @@ function finishOfflineSimulation() {
   if (typeof updateBreakInfinityUnlockSection === 'function') updateBreakInfinityUnlockSection();
   updateTimeFluxTab();
 
-  showNotification('おかえりなさい', `オフライン進行が完了しました（${formatTime(offlineTotalSeconds)}）`, '⏱️');
+  showNotification(t('notif.welcomeBack'), t('notif.offlineComplete', { time: formatTime(offlineTotalSeconds) }), '⏱️');
   saveGame();
 
   proceedToNormalGame();
@@ -272,12 +275,18 @@ function updateTFCapUpgradeUI() {
   ensureTimeFluxState();
   const levelEl = document.getElementById('tf-cap-level-display');
   if (levelEl) levelEl.textContent = game.timeFlux.capLevel || 0;
+
+  const canBuy = canBuyTFCapUpgrade();
+  const curEl = document.getElementById('tf-cap-current-display');
+  if (curEl) curEl.textContent = t('tf.upgradeCurrentMax', { max: formatTime(getTFMaxSeconds()) });
   const nextEl = document.getElementById('tf-cap-next-display');
-  if (nextEl) nextEl.textContent = formatTime(getTFMaxSeconds() * 2);
+  if (nextEl) nextEl.textContent = t('tf.upgradeNextMax', { max: formatTime(getTFMaxSeconds() * 2) });
   const costEl = document.getElementById('tf-cap-cost-display');
-  if (costEl) costEl.textContent = formatTime(getTFCapUpgradeCost());
+  if (costEl) costEl.textContent = canBuy
+    ? t('tf.upgradeCost', { cost: formatTime(getTFCapUpgradeCost()) })
+    : `${t('tf.upgradeCost', { cost: formatTime(getTFCapUpgradeCost()) })}（${t('tf.upgradeInsufficient')}）`;
   const btn = document.getElementById('tf-cap-upgrade-btn');
-  if (btn) btn.classList.toggle('disabled', !canBuyTFCapUpgrade());
+  if (btn) btn.classList.toggle('disabled', !canBuy);
 }
 
 function buildTimeFluxSpeedButtons() {

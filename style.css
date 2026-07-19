@@ -4,6 +4,7 @@
   --bg-core: #050507;
   --bg-sidebar: rgba(10, 10, 12, 0.95);
   --color-main: #00ff9d;
+  --color-main-rgb: 0, 255, 157;
   --color-accent: #00bcd4;
   --color-gold: #ffb300;
   --color-danger: #ff2e63;
@@ -43,6 +44,34 @@ body::before {
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-main); }
 
+/* 起動演出（ロゴ表示） */
+#boot-splash {
+  position: fixed; inset: 0; z-index: 10000;
+  background-color: var(--bg-core);
+  background-image: radial-gradient(circle at 50% 50%, #111 0%, #000 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  opacity: 1; transition: opacity 0.7s ease;
+}
+#boot-splash.fade-out { opacity: 0; pointer-events: none; }
+#boot-splash h1 {
+  font-family: var(--font-tech); font-size: 4.4rem; font-weight: 700; letter-spacing: 8px;
+  color: #fff; text-shadow: 0 0 20px rgba(255,255,255,0.35);
+  margin: 0; opacity: 0;
+  animation: bootTitleIn 1.3s ease forwards;
+}
+#boot-splash p {
+  font-family: var(--font-mono); color: #888; letter-spacing: 3px; font-size: 0.8rem;
+  margin: 18px 0 0 0; opacity: 0;
+  white-space: nowrap; overflow: hidden; width: 0; border-right: 2px solid #888;
+  animation: bootTyping 1.3s steps(23, end) 0.8s forwards, bootFadeIn 0.1s linear 0.8s forwards;
+}
+@keyframes bootTitleIn {
+  0% { opacity: 0; transform: scale(0.92) translateY(8px); letter-spacing: 18px; filter: blur(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); letter-spacing: 8px; filter: blur(0); }
+}
+@keyframes bootFadeIn { to { opacity: 0.7; } }
+@keyframes bootTyping { from { width: 0; } to { width: 23ch; } }
+
 /* Layout: 画面全体を切り替えるタブ方式 */
 .app-wrapper {
   display: flex;
@@ -58,7 +87,7 @@ body::before {
   flex-shrink: 0;
   width: 100%;
   background: rgba(0, 0, 0, 0.55);
-  border-bottom: 1px solid rgba(0, 255, 157, 0.15);
+  border-bottom: 1px solid rgba(var(--color-main-rgb), 0.15);
   backdrop-filter: blur(10px);
   z-index: 100;
 }
@@ -92,7 +121,7 @@ header {
   margin-bottom: 30px;
   position: relative;
   padding-bottom: 20px;
-  border-bottom: 1px solid rgba(0, 255, 157, 0.1);
+  border-bottom: 1px solid rgba(var(--color-main-rgb), 0.1);
 }
 header::after {
   content: ""; position: absolute; bottom: -1px; left: 50%;
@@ -103,8 +132,21 @@ header::after {
 header:hover::after { width: 80%; }
 
 h1 { font-size: 1rem; letter-spacing: 0.5em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; opacity: 0.7; }
-.currency-container h2 { font-family: var(--font-mono); font-size: 3.5rem; margin: 0; font-weight: 300; color: #fff; text-shadow: 0 0 20px rgba(0, 255, 157, 0.4); }
+.currency-container h2 { font-family: var(--font-mono); font-size: 3.5rem; margin: 0; font-weight: 300; color: #fff; text-shadow: 0 0 20px rgba(var(--color-main-rgb), 0.4); word-break: break-all; overflow-wrap: anywhere; max-width: 100%; }
 #pps-display { font-family: var(--font-mono); color: var(--color-main); font-size: 1rem; margin-top: 5px; opacity: 0.8; }
+
+/* 粒子数・Accelerator所持数の表示サイズ設定（設定画面から変更可能） */
+body.particle-size-small .currency-container h2 { font-size: 2.1rem; }
+body.particle-size-small #pps-display { font-size: 0.85rem; }
+body.particle-size-small .gen-amount { font-size: 0.75rem; }
+
+body.particle-size-medium .currency-container h2 { font-size: 3.5rem; }
+body.particle-size-medium #pps-display { font-size: 1rem; }
+body.particle-size-medium .gen-amount { font-size: 0.85rem; }
+
+body.particle-size-large .currency-container h2 { font-size: 4.6rem; }
+body.particle-size-large #pps-display { font-size: 1.2rem; }
+body.particle-size-large .gen-amount { font-size: 0.95rem; }
 
 /* 粒子数の横に配置するライナックコントロール */
 .currency-row {
@@ -163,7 +205,7 @@ h1 { font-size: 1rem; letter-spacing: 0.5em; color: var(--text-dim); text-transf
 .toggle-btn:hover { color: #fff; }
 .toggle-btn.active {
   background: var(--color-main); color: #000; font-weight: bold;
-  box-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+  box-shadow: 0 0 10px rgba(var(--color-main-rgb), 0.3);
 }
 
 /* Generators */
@@ -178,7 +220,7 @@ h1 { font-size: 1rem; letter-spacing: 0.5em; color: var(--text-dim); text-transf
   position: relative; overflow: hidden; transition: all 0.2s ease; backdrop-filter: blur(5px);
 }
 .generator-row:hover {
-  background: rgba(255, 255, 255, 0.07); border-color: rgba(0, 255, 157, 0.3);
+  background: rgba(255, 255, 255, 0.07); border-color: rgba(var(--color-main-rgb), 0.3);
   transform: translateX(5px); box-shadow: -5px 0 15px rgba(0,0,0,0.5);
 }
 .generator-row:hover::before {
@@ -196,8 +238,8 @@ h1 { font-size: 1rem; letter-spacing: 0.5em; color: var(--text-dim); text-transf
   margin-left: 10px; border-radius: 2px; letter-spacing: 0.5px; transition: all 0.3s;
 }
 .auto-badge.active {
-  background: rgba(0, 255, 157, 0.1); border-color: var(--color-main); color: var(--color-main);
-  box-shadow: 0 0 8px rgba(0, 255, 157, 0.2);
+  background: rgba(var(--color-main-rgb), 0.1); border-color: var(--color-main); color: var(--color-main);
+  box-shadow: 0 0 8px rgba(var(--color-main-rgb), 0.2);
 }
 
 .btn-group { display: flex; flex-direction: column; gap: 8px; min-width: 140px; }
@@ -213,7 +255,7 @@ button { outline: none; cursor: pointer; font-family: var(--font-tech); text-tra
   background: var(--color-main); z-index: -1; transition: width 0.2s ease;
 }
 .buy-btn:hover::before { width: 100%; }
-.buy-btn:hover { color: #000; box-shadow: 0 0 15px rgba(0, 255, 157, 0.4); }
+.buy-btn:hover { color: #000; box-shadow: 0 0 15px rgba(var(--color-main-rgb), 0.4); }
 .buy-btn.max { border-color: var(--color-accent); color: var(--color-accent); font-size: 0.75rem; }
 .buy-btn.max::before { background: var(--color-accent); }
 .buy-btn.max:hover { color: #000; box-shadow: 0 0 15px rgba(0, 188, 212, 0.4); }
@@ -232,7 +274,7 @@ button { outline: none; cursor: pointer; font-family: var(--font-tech); text-tra
 }
 .tab-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
 .tab-btn.active {
-  background: linear-gradient(to top, rgba(0, 255, 157, 0.1), transparent);
+  background: linear-gradient(to top, rgba(var(--color-main-rgb), 0.1), transparent);
   color: var(--color-main); border-color: var(--color-main);
   text-shadow: 0 0 8px var(--color-main);
 }
@@ -262,9 +304,10 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
   border: 1px solid #555; font-family: var(--font-tech); font-weight: 600; text-transform: uppercase;
   transition: all 0.2s; cursor: pointer;
 }
+.ui-btn.disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 .ui-btn:hover { background: #333; color: #fff; border-color: #888; }
-.ui-btn.primary { border-color: var(--color-main); color: var(--color-main); background: rgba(0, 255, 157, 0.05); }
-.ui-btn.primary:hover { background: var(--color-main); color: #000; box-shadow: 0 0 20px rgba(0,255,157,0.3); }
+.ui-btn.primary { border-color: var(--color-main); color: var(--color-main); background: rgba(var(--color-main-rgb), 0.05); }
+.ui-btn.primary:hover { background: var(--color-main); color: #000; box-shadow: 0 0 20px rgba(var(--color-main-rgb),0.3); }
 .ui-btn.danger { border-color: var(--color-danger); color: var(--color-danger); background: rgba(255, 46, 99, 0.05); }
 .ui-btn.danger:hover { background: var(--color-danger); color: #fff; box-shadow: 0 0 20px var(--color-danger); }
 #io-area textarea { width: 100%; height: 100px; background: #050505; border: 1px solid #333; color: var(--color-main); font-family: monospace; padding: 10px; resize: vertical; }
@@ -320,12 +363,12 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
 /* チャレンジ */
 #challenge-list { display: flex; flex-direction: column; gap: 14px; margin-top: 15px; }
 .challenge-card {
-  border: 1px solid rgba(0, 255, 157, 0.3); background: rgba(0, 255, 157, 0.03);
+  border: 1px solid rgba(var(--color-main-rgb), 0.3); background: rgba(var(--color-main-rgb), 0.03);
   padding: 16px; position: relative; transition: all 0.2s;
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
 }
 .challenge-card.active { border-color: var(--color-gold); background: rgba(255, 179, 0, 0.05); box-shadow: 0 0 15px rgba(255, 179, 0, 0.15); }
-.challenge-card.completed { border-color: var(--color-main); background: rgba(0, 255, 157, 0.08); }
+.challenge-card.completed { border-color: var(--color-main); background: rgba(var(--color-main-rgb), 0.08); }
 .challenge-card-num { font-size: 0.7rem; color: #888; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 2px; }
 .challenge-card-title { font-size: 1.1rem; font-weight: bold; color: #fff; margin-bottom: 12px; }
 .challenge-card.completed .challenge-card-title { color: var(--color-main); }
@@ -334,7 +377,7 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
 .challenge-card-reward-value { font-size: 0.95rem; font-family: var(--font-mono); color: var(--color-gold); font-weight: bold; }
 .challenge-card .ui-btn { margin-top: 16px; }
 .challenge-card .ui-btn.disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
-.challenge-card.completed .ui-btn { border-color: var(--color-main); color: var(--color-main); background: rgba(0,255,157,0.08); }
+.challenge-card.completed .ui-btn { border-color: var(--color-main); color: var(--color-main); background: rgba(var(--color-main-rgb),0.08); }
 
 
 /* =========================================
@@ -421,7 +464,7 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
 .modal-overlay.active { opacity: 1; pointer-events: auto; }
 .modal-box {
   width: 90%; max-width: 380px; background: var(--bg-sidebar);
-  border: 1px solid var(--color-main); box-shadow: 0 0 30px rgba(0, 255, 157, 0.25), 0 10px 50px rgba(0,0,0,0.8);
+  border: 1px solid var(--color-main); box-shadow: 0 0 30px rgba(var(--color-main-rgb), 0.25), 0 10px 50px rgba(0,0,0,0.8);
   padding: 24px; position: relative;
   clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
   transform: translateY(10px) scale(0.97); transition: transform 0.25s ease;
@@ -429,7 +472,7 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
 .modal-overlay.active .modal-box { transform: translateY(0) scale(1); }
 .modal-title {
   color: var(--color-main); font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;
-  text-align: center; border-bottom: 1px solid rgba(0,255,157,0.2); padding-bottom: 12px; margin: 0 0 16px 0;
+  text-align: center; border-bottom: 1px solid rgba(var(--color-main-rgb),0.2); padding-bottom: 12px; margin: 0 0 16px 0;
   text-shadow: 0 0 8px var(--color-main);
 }
 .modal-body {
@@ -462,8 +505,23 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
 .tf-speed-buttons .speed-btn:hover { color: #fff; border-color: #888; }
 .offline-speed-buttons .speed-btn.active,
 .tf-speed-buttons .speed-btn.active {
-  color: var(--color-main); border-color: var(--color-main); background: rgba(0,255,157,0.1);
+  color: var(--color-main); border-color: var(--color-main); background: rgba(var(--color-main-rgb),0.1);
   text-shadow: 0 0 6px var(--color-main);
+}
+
+/* Infinityまでの進捗バー（メイン画面） */
+.inf-progress-wrap { width: 100%; margin-top: 8px; }
+.inf-progress-label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.75rem; color: #aaa; margin-bottom: 4px;
+}
+.inf-progress-label span:last-child { color: #d500f9; font-weight: bold; font-family: var(--font-mono); }
+.inf-progress-bar {
+  width: 100%; height: 10px; background: #111; border: 1px solid #333; overflow: hidden;
+}
+.inf-progress-fill {
+  height: 100%; width: 0%; background: linear-gradient(90deg, #6a00a8, #d500f9);
+  box-shadow: 0 0 10px #d500f9; transition: width 0.3s ease;
 }
 
 /* Time Flux */
@@ -486,7 +544,7 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
   display: flex; align-items: flex-start; gap: 12px;
   background: rgba(5, 8, 10, 0.92); border: 1px solid var(--color-main);
   border-left: 3px solid var(--color-main);
-  box-shadow: 0 0 20px rgba(0, 255, 157, 0.25), 0 6px 20px rgba(0,0,0,0.6);
+  box-shadow: 0 0 20px rgba(var(--color-main-rgb), 0.25), 0 6px 20px rgba(0,0,0,0.6);
   padding: 12px 16px; backdrop-filter: blur(6px);
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   opacity: 0; transform: translateX(40px); transition: opacity 0.35s ease, transform 0.35s ease;
@@ -530,11 +588,43 @@ select { width: 100%; padding: 10px; background: #111; color: #fff; border: 1px 
 }
 .ach-card.unlocked .ach-card-status { border-color: var(--color-gold); color: var(--color-gold); }
 
+/* テーマショップ */
+.theme-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px; margin-top: 14px;
+}
+.theme-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 10px; border: 1px solid #333; background: rgba(255, 255, 255, 0.02);
+  transition: all 0.2s; cursor: pointer;
+}
+.theme-card:hover { border-color: #666; }
+.theme-card.owned { border-color: #555; }
+.theme-card.equipped {
+  border-color: var(--theme-swatch-color, var(--color-main));
+  background: rgba(var(--color-main-rgb), 0.06);
+  box-shadow: 0 0 12px rgba(var(--color-main-rgb), 0.2);
+}
+.theme-swatch {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--theme-swatch-color, #fff);
+  box-shadow: 0 0 10px var(--theme-swatch-color, #fff), inset 0 0 6px rgba(0,0,0,0.3);
+  border: 2px solid rgba(255,255,255,0.15);
+}
+.theme-card-name { font-size: 0.8rem; font-weight: bold; color: #eee; text-align: center; }
+.theme-card-cost { font-size: 0.7rem; color: var(--color-gold); font-weight: bold; }
+.theme-card-status {
+  font-size: 0.68rem; padding: 2px 8px; border: 1px solid #555; color: #888; white-space: nowrap;
+}
+.theme-card.equipped .theme-card-status { border-color: var(--theme-swatch-color, var(--color-main)); color: var(--theme-swatch-color, var(--color-main)); }
+.theme-card:not(.owned):not(.affordable) { opacity: 0.55; }
+.theme-card.affordable:not(.owned) .theme-card-status { border-color: var(--color-gold); color: var(--color-gold); }
+
 /* Glitch */
 .glitch-overlay {
   position: fixed; top:0; left:0; width:100%; height:100%;
   pointer-events: none; z-index: 9999; mix-blend-mode: hard-light; opacity: 0;
-  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 157, 0.1) 2px, rgba(0, 255, 157, 0.1) 4px);
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(var(--color-main-rgb), 0.1) 2px, rgba(var(--color-main-rgb), 0.1) 4px);
   transition: opacity 0.5s;
 }
 body.glitched .glitch-overlay { animation: flashNoise 0.1s infinite; }

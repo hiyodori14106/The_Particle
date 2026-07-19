@@ -1266,10 +1266,6 @@
 // 所持IPがこの値以上でBreak Infinityを解放できる
 const BREAK_INFINITY_UNLOCK_IP = 1e50;
 
-// Break Infinity機能は現在開発中のため、実際の解放処理は行わず「未実装」と表示する。
-// 本実装が完了したら true に切り替えるだけで、既存の解放UI・処理がそのまま動作する。
-const BREAK_INFINITY_IMPLEMENTED = false;
-
 // --- Break Infinity 状態の初期値 ---
 function getDefaultBreakInfinityState() {
   return {
@@ -1307,27 +1303,16 @@ function biGetIP() {
 }
 
 // --- 解放処理 ---
+// Break Infinityは現在未実装のため、実際の解放処理は行わず「未実装」を通知するだけにする。
 function tryUnlockBreakInfinity() {
-  if (!BREAK_INFINITY_IMPLEMENTED) return; // 未実装のため何もしない
-  ensureBreakInfinityState();
-  if (game.breakInfinity.unlocked) return;
-  const currentIP = biGetIP();
-  if (currentIP.lt(BREAK_INFINITY_UNLOCK_IP)) return;
-
-  game.infinity.ip = currentIP.sub(BREAK_INFINITY_UNLOCK_IP);
-  game.breakInfinity.unlocked = true;
-  if (typeof AudioSystem !== 'undefined') AudioSystem.playSE('unlock');
+  if (typeof AudioSystem !== 'undefined') AudioSystem.playSE('error');
   if (typeof showModal === 'function') {
     showModal({
-      title: '上限突破',
-      body: '粒子の上限が撤廃されました。<br>1.78e308を超えて進行できます。',
-      buttons: [ { label: 'OK', primary: true, onClick: closeModal } ]
+      title: t('bi.notImplementedTitle'),
+      body: t('bi.notImplementedBody'),
+      buttons: [ { label: t('common.ok'), primary: true, onClick: closeModal } ]
     });
   }
-  if (typeof saveGame === 'function') saveGame();
-  updateBreakInfinityTab();
-  updateBreakInfinityUnlockSection();
-  if (typeof updateChallengeSectionVisibility === 'function') updateChallengeSectionVisibility();
 }
 
 // Infinityタブに表示する解放セクション
@@ -1346,16 +1331,7 @@ function updateBreakInfinityUnlockSection() {
 
   const btn = document.getElementById('btn-break-infinity-unlock');
   const msg = document.getElementById('break-infinity-unlocked-msg');
-  const notImplMsg = document.getElementById('break-infinity-not-implemented-msg');
   if (!btn || !msg) return;
-
-  if (!BREAK_INFINITY_IMPLEMENTED) {
-    btn.style.display = 'none';
-    msg.style.display = 'none';
-    if (notImplMsg) notImplMsg.style.display = 'block';
-    return;
-  }
-  if (notImplMsg) notImplMsg.style.display = 'none';
 
   const currentIP = biGetIP();
   const ipDisplay = document.getElementById('bi-unlock-ip-display');
@@ -1367,7 +1343,8 @@ function updateBreakInfinityUnlockSection() {
   } else {
     btn.style.display = 'block';
     msg.style.display = 'none';
-    btn.classList.toggle('disabled', currentIP.lt(BREAK_INFINITY_UNLOCK_IP));
+    btn.textContent = t('bi.unlockBtn', { cost: format(BREAK_INFINITY_UNLOCK_IP) });
+    btn.classList.remove('disabled');
   }
 }
 
@@ -1387,11 +1364,11 @@ function updateBreakInfinityTab() {
   const currentIP = biGetIP();
   container.innerHTML = `
     <div style="color:#ff0055; text-align:center; border:1px solid #ff0055; padding:15px;">
-      <strong>LIMIT BROKEN</strong><br>
-      上限解除済み・1.78e308を超えて進行できます
+      <strong>${t('bi.unlockedMsg1')}</strong><br>
+      ${t('bi.unlockedMsg2')}
     </div>
     <div class="stat-row" style="margin-top:15px;">
-      <span class="stat-label">所持 IP</span>
+      <span class="stat-label">${t('bi.currentIP')}</span>
       <span class="stat-val" id="bi-current-ip2">0</span>
     </div>
   `;

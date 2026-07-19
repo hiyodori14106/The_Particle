@@ -76,8 +76,8 @@ const UNITS_JP = [
 function makeMkPowerUpgrade(id, targetGen) {
   return {
     id, targetGen,
-    title: `Mk.${targetGen + 1} 強化`,
-    desc: `Mk.${targetGen + 1} の生産倍率を指数で強化`,
+    titleKey: 'infUpgrade.mkTitle', titleVars: { n: targetGen + 1 },
+    descKey: 'infUpgrade.mkDesc', descVars: { n: targetGen + 1 },
     baseCost: 1,
     leveled: true,
     effect: (game) => 1 + getUpgradeLevel(id) * 0.1,
@@ -89,8 +89,8 @@ function makeMkPowerUpgrade(id, targetGen) {
 const INF_UPGRADES = [
   {
     id: 0,
-    title: "時間膨張",
-    desc: "通算プレイ時間に応じて全生産倍率増加",
+    titleKey: 'infUpgrade.timeDilationTitle',
+    descKey: 'infUpgrade.timeDilationDesc',
     cost: 1,
     leveled: false,
     effect: (game) => {
@@ -109,8 +109,8 @@ const INF_UPGRADES = [
   makeMkPowerUpgrade(8, 7),
   {
     id: 9,
-    title: "IP倍加",
-    desc: "Big Crunchで獲得するIPを増加させる",
+    titleKey: 'infUpgrade.ipDoubleTitle',
+    descKey: 'infUpgrade.ipDoubleDesc',
     baseCost: 2,
     leveled: true,
     effect: (game) => Math.pow(2, getUpgradeLevel(9)),
@@ -124,35 +124,166 @@ const INF_UPGRADES = [
 const ACHIEVEMENTS_BASE = [
   {
     id: 'firstStep',
-    title: '初めての一歩',
-    desc: 'Accelerator Mk.1を初めて購入した',
+    titleKey: 'ach.firstStep.title',
+    descKey: 'ach.firstStep.desc',
     icon: '🚀',
     points: 10,
     check: (game) => game.generators[0] && amtGte(game.generators[0].amount, 1)
   },
   {
     id: 'firstLinac',
-    title: '初ライナック！',
-    desc: '初めてライナック（Linac）を実行した',
+    titleKey: 'ach.firstLinac.title',
+    descKey: 'ach.firstLinac.desc',
     icon: '🌌',
     points: 10,
     check: (game) => (game.stats.totalLinacs || 0) >= 1
   },
   {
     id: 'firstShift',
-    title: '初シフト！',
-    desc: '初めてシフト（Shift）を実行した',
+    titleKey: 'ach.firstShift.title',
+    descKey: 'ach.firstShift.desc',
     icon: '🔄',
     points: 10,
     check: (game) => (game.shifts || 0) >= 1
   },
   {
     id: 'infinity',
-    title: 'Infinity',
-    desc: '初めてBig Crunchを行った',
+    titleKey: 'ach.infinity.title',
+    descKey: 'ach.infinity.desc',
     icon: '♾️',
     points: 100,
     check: (game) => (game.infinity && game.infinity.crunchCount > 0)
+  },
+  // --- ライナック回数実績 ---
+  {
+    id: 'doubleLinac',
+    titleKey: 'ach.doubleLinac.title',
+    descKey: 'ach.doubleLinac.desc',
+    icon: '🌠',
+    points: 10,
+    check: (game) => (game.stats.totalLinacs || 0) >= 2
+  },
+  {
+    id: 'tripleLinac',
+    titleKey: 'ach.tripleLinac.title',
+    descKey: 'ach.tripleLinac.desc',
+    icon: '💫',
+    points: 10,
+    check: (game) => (game.stats.totalLinacs || 0) >= 3
+  },
+  {
+    id: 'linacIntermediate',
+    titleKey: 'ach.linacIntermediate.title',
+    descKey: 'ach.linacIntermediate.desc',
+    icon: '⚡',
+    points: 10,
+    check: (game) => (game.stats.totalLinacs || 0) >= 10
+  },
+  {
+    id: 'linacAdvanced',
+    titleKey: 'ach.linacAdvanced.title',
+    descKey: 'ach.linacAdvanced.desc',
+    icon: '🔥',
+    points: 20,
+    check: (game) => (game.stats.totalLinacs || 0) >= 30
+  },
+  {
+    id: 'linacMaster',
+    titleKey: 'ach.linacMaster.title',
+    descKey: 'ach.linacMaster.desc',
+    icon: '👑',
+    points: 30,
+    check: (game) => (game.stats.totalLinacs || 0) >= 50
+  },
+  // --- シフト回数実績 ---
+  {
+    id: 'doubleShift',
+    titleKey: 'ach.doubleShift.title',
+    descKey: 'ach.doubleShift.desc',
+    icon: '🔁',
+    points: 10,
+    check: (game) => (game.shifts || 0) >= 2
+  },
+  {
+    id: 'tripleShift',
+    titleKey: 'ach.tripleShift.title',
+    descKey: 'ach.tripleShift.desc',
+    icon: '♻️',
+    points: 20,
+    check: (game) => (game.shifts || 0) >= 3
+  },
+  {
+    id: 'moreShift',
+    titleKey: 'ach.moreShift.title',
+    descKey: 'ach.moreShift.desc',
+    icon: '🌀',
+    points: 10,
+    check: (game) => (game.shifts || 0) >= 5
+  },
+  {
+    id: 'shiftMaster',
+    titleKey: 'ach.shiftMaster.title',
+    descKey: 'ach.shiftMaster.desc',
+    icon: '🏅',
+    points: 50,
+    check: (game) => (game.shifts || 0) >= 10
+  },
+  // --- Accelerator初購入実績（Mk.2〜Mk.8） ---
+  {
+    id: 'mk2First',
+    titleKey: 'ach.mk2First.title',
+    descKey: 'ach.mk2First.desc',
+    icon: '🔋',
+    points: 10,
+    check: (game) => game.generators[1] && amtGte(game.generators[1].amount, 1)
+  },
+  {
+    id: 'mk3First',
+    titleKey: 'ach.mk3First.title',
+    descKey: 'ach.mk3First.desc',
+    icon: '🔌',
+    points: 10,
+    check: (game) => game.generators[2] && amtGte(game.generators[2].amount, 1)
+  },
+  {
+    id: 'mk4First',
+    titleKey: 'ach.mk4First.title',
+    descKey: 'ach.mk4First.desc',
+    icon: '⚙️',
+    points: 10,
+    check: (game) => game.generators[3] && amtGte(game.generators[3].amount, 1)
+  },
+  {
+    id: 'mk5First',
+    titleKey: 'ach.mk5First.title',
+    descKey: 'ach.mk5First.desc',
+    icon: '🛠️',
+    points: 10,
+    check: (game) => game.generators[4] && amtGte(game.generators[4].amount, 1)
+  },
+  {
+    id: 'mk6First',
+    titleKey: 'ach.mk6First.title',
+    descKey: 'ach.mk6First.desc',
+    icon: '😨',
+    points: 10,
+    check: (game) => game.generators[5] && amtGte(game.generators[5].amount, 1)
+  },
+  {
+    id: 'mk7First',
+    titleKey: 'ach.mk7First.title',
+    descKey: 'ach.mk7First.desc',
+    icon: '🍀',
+    points: 10,
+    check: (game) => game.generators[6] && amtGte(game.generators[6].amount, 1)
+  },
+  {
+    id: 'mk8First',
+    titleKey: 'ach.mk8First.title',
+    descKey: 'ach.mk8First.desc',
+    icon: '🏁',
+    points: 10,
+    check: (game) => game.generators[7] && amtGte(game.generators[7].amount, 1)
   }
 ];
 
@@ -194,8 +325,9 @@ const PARTICLE_MILESTONES = [
 
 const PARTICLE_ACHIEVEMENTS = PARTICLE_MILESTONES.map((m, i) => ({
   id: `particles_${i}_${m.label.replace(/\./g, 'p')}`,
-  title: m.title,
-  desc: `粒子が ${m.label} に到達した`,
+  titleKey: `ach.m${i}.title`,
+  descKey: 'ach.particleDesc',
+  descVars: { label: m.label },
   icon: '✨',
   points: 10,
   check: (game) => toDecimal(game.particles).gte(m.threshold)
@@ -214,20 +346,30 @@ const CHALLENGES = [
   {
     id: 'slowSpeed',
     number: 1,
-    title: 'スロースピード',
-    effectLabel: 'PPS ×0.9',
-    rewardLabel: 'PPS ×2',
+    titleKey: 'ch.slowSpeed.title',
+    effectLabelKey: 'ch.slowSpeed.effectLabel',
+    rewardLabelKey: 'ch.slowSpeed.rewardLabel',
     effectMult: 0.9,  // チャレンジ中のみ適用される生産倍率
     rewardMult: 2     // クリア後、永久に適用される生産倍率
   },
   {
     id: 'highCost',
     number: 2,
-    title: '高コスト',
-    effectLabel: 'Acceleratorコスト ×2',
-    rewardLabel: 'Acceleratorコスト ×0.95',
+    titleKey: 'ch.highCost.title',
+    effectLabelKey: 'ch.highCost.effectLabel',
+    rewardLabelKey: 'ch.highCost.rewardLabel',
     costMult: 2,        // チャレンジ中のみ適用されるコスト倍率（購入コストが上昇）
     costRewardMult: 0.95 // クリア後、永久に適用されるコスト倍率（購入コストが減少）
+  },
+  {
+    id: 'backToBasics',
+    number: 3,
+    titleKey: 'ch.backToBasics.title',
+    effectLabelKey: 'ch.backToBasics.effectLabel',
+    rewardLabelKey: 'ch.backToBasics.rewardLabel',
+    disableAutomation: true // チャレンジ中はオートバイヤーとMキー（最大購入）が使用不可
+    // 報酬（自動ライナック）は数値倍率ではなく、game.challenge.completed.backToBasics を
+    // isAutoLinacUnlocked() が参照することで機能する（getChallengeRewardMultiplier等では扱わない）
   }
 ];
 
@@ -236,6 +378,33 @@ function getDefaultChallengeState() {
   CHALLENGES.forEach(c => { completed[c.id] = false; });
   return { unlocked: false, active: null, completed };
 }
+
+// --- ショップ: テーマ定義 ---
+// id: セーブデータ・DOM要素IDに使う識別子 / nameKey: i18nキー
+// color: --color-main に設定するHEX値 / rgb: rgba(var(--color-main-rgb),x) 用の "r, g, b"
+// cost: 購入に必要なIP（デフォルトテーマのみ0＝最初から所持）
+const THEMES = [
+  { id: 'default',    nameKey: 'shop.theme.default',    color: '#00ff9d', rgb: '0, 255, 157',  cost: 0 },
+  { id: 'red',        nameKey: 'shop.theme.red',        color: '#ff3b3b', rgb: '255, 59, 59',   cost: 50 },
+  { id: 'orange',     nameKey: 'shop.theme.orange',     color: '#ff9100', rgb: '255, 145, 0',   cost: 50 },
+  { id: 'yellow',     nameKey: 'shop.theme.yellow',     color: '#ffea00', rgb: '255, 234, 0',   cost: 50 },
+  { id: 'lightgreen', nameKey: 'shop.theme.lightgreen', color: '#76ff03', rgb: '118, 255, 3',   cost: 50 },
+  { id: 'green',      nameKey: 'shop.theme.green',      color: '#00e676', rgb: '0, 230, 118',   cost: 50 },
+  { id: 'emerald',    nameKey: 'shop.theme.emerald',    color: '#00bfa5', rgb: '0, 191, 165',   cost: 50 },
+  { id: 'lightblue',  nameKey: 'shop.theme.lightblue',  color: '#00b0ff', rgb: '0, 176, 255',   cost: 50 },
+  { id: 'blue',       nameKey: 'shop.theme.blue',       color: '#2979ff', rgb: '41, 121, 255',  cost: 50 },
+  { id: 'purple',     nameKey: 'shop.theme.purple',     color: '#b388ff', rgb: '179, 136, 255', cost: 50 }
+];
+function getThemeName(theme) { return t(theme.nameKey); }
+
+// --- 多言語コンテンツ用ヘルパー: titleKey/descKey等から現在言語の文言を取得する ---
+function getUpgradeTitle(up) { return t(up.titleKey, up.titleVars); }
+function getUpgradeDesc(up) { return t(up.descKey, up.descVars); }
+function getAchTitle(a) { return t(a.titleKey, a.titleVars); }
+function getAchDesc(a) { return t(a.descKey, a.descVars); }
+function getChallengeTitle(c) { return t(c.titleKey); }
+function getChallengeEffectLabel(c) { return t(c.effectLabelKey); }
+function getChallengeRewardLabel(c) { return t(c.rewardLabelKey); }
 
 // --- 初期ジェネレーター生成 ---
 function getInitialGenerators() {
@@ -288,12 +457,16 @@ function getInitialState() {
       skipCrunchAnim: false,
       glitchEffect: true,
       sfxEnabled: true,
-      bgmEnabled: true
+      bgmEnabled: true,
+      autoLinacEnabled: true,
+      particleDisplaySize: 'medium',
+      lang: getLang()
     },
     achievements: getDefaultAchievements(),
     achievementPoints: 0,
+    themes: { owned: ['default'], selected: 'default' },
     lastSaveTime: Date.now(),
-    timeFlux: { time: 0, speed: 1, capLevel: 0 },
+    timeFlux: { time: 0, speed: 1 },
     challenge: getDefaultChallengeState(),
     breakInfinity: (typeof getDefaultBreakInfinityState === 'function') ? getDefaultBreakInfinityState() : { unlocked: false },
     lastTick: Date.now(),
@@ -306,6 +479,7 @@ let game = getInitialState();
 let isCrunching = false;
 let currentPPSValue = 0; // 統計画面「現在のPPS」表示用キャッシュ
 let offlineSimulating = false; // オフライン進行の一括シミュレーション中はtrue（通知・重いDOM更新を抑制する）
+let suppressUnloadSave = false; // ハードリセット/インポート直後のreload時に、古いgameをbeforeunloadで再セーブしてしまうのを防ぐ
 
 // 効果音再生の共通窓口（オフライン進行シミュレーション中は鳴らさない）
 function playSE(name) {
@@ -336,6 +510,7 @@ function format(num) {
   const type = (game.settings && game.settings.notation) ? game.settings.notation : 'sci';
   
   if (type === 'sci') return formatScientific(num);
+  if (type === 'raw') return formatRaw(num);
   if (type === 'eng') {
     let exponent = Math.floor(Math.log10(num));
     let unitIndex = Math.floor(exponent / 3);
@@ -358,6 +533,15 @@ function formatScientific(num) {
   let exponent = Math.floor(Math.log10(num));
   let mantissa = num / Math.pow(10, exponent);
   return mantissa.toFixed(2) + "e" + exponent;
+}
+
+// 実数表示（桁区切り）: 1e21以上はnumberの精度が失われるため科学的記法にフォールバックする
+function formatRaw(num) {
+  if (!isFinite(num)) return "Infinity";
+  if (num < 1e21) {
+    return Math.floor(num).toLocaleString('en-US');
+  }
+  return formatScientific(num);
 }
 
 function formatTime(seconds) {
@@ -551,6 +735,19 @@ function getShiftReq() {
   return 5 + (s * 5);
 }
 
+// Infinity（Big Crunch）までの進捗率を0〜1で返す。
+// 桁数が非常に大きくなるため、線形比ではなく対数スケールで進捗を計算する。
+function getInfinityProgressRatio() {
+  const breakActive = (typeof isBreakInfinityActive === 'function' && isBreakInfinityActive());
+  if (breakActive) return 1; // Break Infinity解放後は上限が実質無いため常に満タン扱い
+  const p = toDecimal(game.particles);
+  if (!p || p.lte(0)) return 0;
+  const logP = p.log10();
+  const logCap = Math.log10(1.79e308);
+  if (!isFinite(logP) || logCap <= 0) return 0;
+  return Math.max(0, Math.min(1, logP / logCap));
+}
+
 // --- ゲームループ ---
 // ゲームの1ティック分の計算のみを行う（DOM更新は含まない）。
 // 通常のgameLoop・オフライン進行・Time Warpのすべてがこの関数を共有することで
@@ -628,6 +825,7 @@ function simulateTick(dt) {
   game.autobuyerTimer = (game.autobuyerTimer || 0) + dt;
   if (game.autobuyerTimer >= 0.5) {
     runAutobuyers();
+    runAutoLinac();
     game.autobuyerTimer = 0;
   }
   
@@ -693,7 +891,36 @@ function gameLoop() {
 }
 
 // --- アクション ---
+// アクティブなチャレンジによってオートバイヤー・Mキーが無効化されているか
+function isChallengeAutomationDisabled() {
+  if (game.challenge && game.challenge.active) {
+    const c = CHALLENGES.find(ch => ch.id === game.challenge.active);
+    if (c && c.disableAutomation) return true;
+  }
+  return false;
+}
+
+// Challenge 3「初心に戻る」クリア後に解放される自動ライナックが使用可能か
+function isAutoLinacUnlocked() {
+  return !!(game.challenge && game.challenge.completed && game.challenge.completed['backToBasics']);
+}
+
+// 自動ライナック: Mk.8が必要数に達したら自動でライナックを実行する
+function runAutoLinac() {
+  if (!isAutoLinacUnlocked()) return;
+  if (game.settings && game.settings.autoLinacEnabled === false) return;
+  if (isChallengeAutomationDisabled()) return;
+  if (!game.unlocks || !game.unlocks.linac) return;
+  const gen8 = game.generators[7];
+  if (!gen8) return;
+  const req = getLinacReq();
+  if (amtGte(gen8.amount, req)) {
+    executeLinac();
+  }
+}
+
 function runAutobuyers() {
+  if (isChallengeAutomationDisabled()) return; // Challenge 3中はオートバイヤーを停止する
   game.generators.forEach((gen, index) => {
     if (!gen.unlocked) return; // 未解放のAcceleratorは自動購入もしない
 
@@ -742,7 +969,25 @@ function changeNotation(val) {
   game.settings.notation = val;
   updateUI(0);
   saveGame(true);
-  showNotification('設定を保存しました', '', '⚙️');
+  showNotification(t('notif.settingsSaved'), '', '⚙️');
+}
+
+const PARTICLE_DISPLAY_SIZES = ['small', 'medium', 'large'];
+
+// 粒子数（Accelerator所持数含む）の表示文字サイズを反映する（body要素にクラスを付与）
+function applyParticleDisplaySize(size) {
+  if (!PARTICLE_DISPLAY_SIZES.includes(size)) size = 'medium';
+  document.body.classList.remove(...PARTICLE_DISPLAY_SIZES.map(s => `particle-size-${s}`));
+  document.body.classList.add(`particle-size-${size}`);
+}
+
+function changeParticleDisplaySize(val) {
+  if (!PARTICLE_DISPLAY_SIZES.includes(val)) return;
+  game.settings.particleDisplaySize = val;
+  applyParticleDisplaySize(val);
+  saveGame(true);
+  showNotification(t('notif.settingsSaved'), '', '⚙️');
+  playSE('toggle');
 }
 
 // 現在選択中の購入数(1/10/100/'max')に応じて、実際に購入可能な数量だけ購入する。
@@ -809,10 +1054,10 @@ function doLinac() {
 
   if (!game.settings.skipLinacConf) {
     showModal({
-      title: 'ライナック',
-      body: `ライナックを実行しますか？<br><br>倍率: <b>x${format(currentBase)}</b><br><br>粒子とAcceleratorがリセットされます。`,
+      title: t('notif.linacConfirmTitle'),
+      body: t('notif.linacConfirmBody', { val: format(currentBase) }),
       buttons: [
-        { label: 'キャンセル', onClick: closeModal },
+        { label: t('common.cancel'), onClick: closeModal },
         { label: 'OK', primary: true, onClick: () => { closeModal(); executeLinac(); } }
       ]
     });
@@ -849,7 +1094,7 @@ function executeLinac() {
 
   saveGame();
   updateUI(0);
-  showNotification('ライナックしました', `倍率 x${format(newMult)}`, '🌌');
+  showNotification(t('notif.linacTitle'), t('notif.linacMsg', { val: format(newMult) }), '🌌');
   playSE('linac');
   checkAchievements();
 }
@@ -862,10 +1107,10 @@ function doLinacShift() {
 
   if (!game.settings.skipShiftConf) {
     showModal({
-      title: 'ライナック・シフト',
-      body: `【警告】シフトを実行しますか？<br><br>倍率: x${format(currentBase)} → <b>x${format(nextBase)}</b><br><br>ライナックと全ての進捗がリセットされます。`,
+      title: t('notif.shiftConfirmTitle'),
+      body: t('notif.shiftConfirmBody', { cur: format(currentBase), next: format(nextBase) }),
       buttons: [
-        { label: 'キャンセル', onClick: closeModal },
+        { label: t('common.cancel'), onClick: closeModal },
         { label: 'OK', primary: true, danger: true, onClick: () => { closeModal(); executeLinacShift(nextBase); } }
       ]
     });
@@ -889,14 +1134,14 @@ function executeLinacShift(nextBase) {
 
   saveGame();
   updateUI(0);
-  showNotification('シフトしました', `倍率 x${format(nextBase)}`, '🔄');
+  showNotification(t('notif.shiftTitle'), t('notif.shiftMsg', { val: format(nextBase) }), '🔄');
   playSE('shift');
   checkAchievements();
   
   if (!game.settings.skipShiftConf) {
     showModal({
-      title: 'シフト完了',
-      body: `現在の倍率: <b>x${format(nextBase)}</b>`,
+      title: t('notif.shiftCompleteTitle'),
+      body: t('notif.shiftCompleteBody', { val: format(nextBase) }),
       buttons: [ { label: 'OK', primary: true, onClick: closeModal } ]
     });
   }
@@ -938,10 +1183,10 @@ function buyInfinityUpgrade(id) {
 // --- UI更新 ---
 function updateUI(pps) {
   const pDisplay = document.getElementById('particle-display');
-  if(pDisplay) pDisplay.textContent = `${format(game.particles)} 粒子`;
+  if(pDisplay) pDisplay.textContent = t('main.particleDisplay', { val: format(game.particles) });
   
   const ppsDisplay = document.getElementById('pps-display');
-  if(ppsDisplay) ppsDisplay.textContent = `(+${format(pps)} /秒)`;
+  if(ppsDisplay) ppsDisplay.textContent = t('main.ppsDisplay', { val: format(pps) });
 
   updateAutomationSectionVisibility();
   updateChallengeSectionVisibility();
@@ -961,14 +1206,33 @@ function updateUI(pps) {
     if (infTabBtn) infTabBtn.style.display = 'none';
   }
 
+  // Infinityまでの進捗バー
+  const infProgressContainer = document.getElementById('infinity-progress-container');
+  if (infProgressContainer) {
+    const breakActive = (typeof isBreakInfinityActive === 'function' && isBreakInfinityActive());
+    if (breakActive) {
+      infProgressContainer.style.display = 'none';
+    } else {
+      infProgressContainer.style.display = 'block';
+      const ratio = getInfinityProgressRatio();
+      const pct = ratio * 100;
+      const fill = document.getElementById('infinity-progress-fill');
+      if (fill) fill.style.width = `${pct}%`;
+      const pctEl = document.getElementById('infinity-progress-percent');
+      if (pctEl) pctEl.textContent = `${pct.toFixed(pct >= 100 ? 0 : 2)}%`;
+    }
+  }
+
   // シフトバー表示
   const shiftStatusBar = document.getElementById('shift-status');
   if (shiftStatusBar) {
     if ((game.shifts || 0) > 0) {
       shiftStatusBar.style.display = 'flex';
       const baseMult = getLinacBaseMult();
-      document.getElementById('shift-mult-display').textContent = `x${format(baseMult)}`;
-      document.getElementById('shift-count').textContent = game.shifts || 0;
+      const shiftMultEl = document.getElementById('shift-mult-display');
+      if (shiftMultEl) shiftMultEl.textContent = `x${format(baseMult)}`;
+      const shiftCountEl = document.getElementById('shift-count');
+      if (shiftCountEl) shiftCountEl.textContent = game.shifts || 0;
     } else {
       shiftStatusBar.style.display = 'none';
     }
@@ -990,14 +1254,14 @@ function updateUI(pps) {
 
       const btnLinac = document.getElementById('btn-linac');
       if (btnLinac) {
-        btnLinac.textContent = 'ライナック';
+        btnLinac.textContent = t('main.linac');
         if (amtGte(game.generators[7].amount, linacReq)) {
           btnLinac.classList.remove('disabled');
-          btnLinac.title = `倍率 x${format(baseMult)} でリセット`;
+          btnLinac.title = t('notif.linacResetTitle', { val: format(baseMult) });
           btnLinac.onclick = doLinac;
         } else {
           btnLinac.classList.add('disabled');
-          btnLinac.title = `Mk.8 が ${linacReq}個 必要`;
+          btnLinac.title = t('notif.linacDisabledTitle', { req: linacReq });
           btnLinac.onclick = null;
         }
       }
@@ -1007,8 +1271,8 @@ function updateUI(pps) {
         if (game.linacs >= shiftReq) {
           btnShift.style.display = 'inline-block';
           const nextBase = baseMult + 0.2;
-          btnShift.textContent = 'シフト';
-          btnShift.title = `次倍率 x${format(nextBase)}（全リセット）`;
+          btnShift.textContent = t('main.shift');
+          btnShift.title = t('notif.shiftNextTitle', { val: format(nextBase) });
         } else {
           btnShift.style.display = 'none';
         }
@@ -1036,19 +1300,19 @@ function updateUI(pps) {
         autoBadge.onclick = () => toggleAutobuyer(index);
         if (gen.autoActive) {
           autoBadge.classList.add('active');
-          autoBadge.textContent = "自動: ON";
+          autoBadge.textContent = t('auto.on');
         } else {
           autoBadge.classList.add('inactive');
-          autoBadge.textContent = "自動: OFF";
+          autoBadge.textContent = t('auto.off');
         }
       } else {
         const th = Number('1e' + (50 + index * 10));
-        autoBadge.textContent = `必要: ${format(th)}`;
+        autoBadge.textContent = t('auto.required', { val: format(th) });
       }
     }
 
     const amtEl = document.getElementById(`amount-${index}`);
-    if(amtEl) amtEl.textContent = `所持: ${format(gen.amount)}`;
+    if(amtEl) amtEl.textContent = t('common.owned', { val: format(gen.amount) });
 
     const perGenMult = getPerGenInfMult(index);
     const totalInfMult = globalInfMult * perGenMult;
@@ -1061,7 +1325,7 @@ function updateUI(pps) {
     if (linacEl) {
         if (currentLinacMult > 1) {
             linacEl.style.display = 'block';
-            linacEl.textContent = `[ライナック: x${format(currentLinacMult)}]`;
+            linacEl.textContent = t('badge.linacMult', { val: format(currentLinacMult) });
         } else {
             linacEl.style.display = 'none';
         }
@@ -1071,7 +1335,7 @@ function updateUI(pps) {
     if (infEl) {
         if (totalInfMult > 1) {
             infEl.style.display = 'block'; 
-            infEl.textContent = `[Infinity強化: x${format(totalInfMult)}]`;
+            infEl.textContent = t('badge.infMult', { val: format(totalInfMult) });
         } else {
             infEl.style.display = 'none';
         }
@@ -1099,17 +1363,17 @@ function updateUI(pps) {
 
     if (mode === 'max') {
       if (affordableCount > 0) {
-        btn.textContent = `${format(affordableCount)}個: ${format(affordableCost)}`;
+        btn.textContent = t('common.buyCount', { count: format(affordableCount), cost: format(affordableCost) });
         btn.classList.remove('disabled');
       } else {
-        btn.textContent = '購入不可';
+        btn.textContent = t('common.buyUnavailable');
         btn.classList.add('disabled');
       }
     } else {
       // x1/x10/x100は常に目標数量分の価格を表示し、不足時はボタンのみ無効化する
       // （実際のクリック時は購入可能な分だけ購入される）
       const fullCost = getBulkCost(gen, mode);
-      btn.textContent = `${mode}個: ${format(fullCost)}`;
+      btn.textContent = t('common.buyCount', { count: mode, cost: format(fullCost) });
       if (affordableCount > 0) btn.classList.remove('disabled'); else btn.classList.add('disabled');
     }
   });
@@ -1120,15 +1384,15 @@ function updateStats() {
   document.getElementById('stat-time').textContent = `${formatTime(currentRunTime)}`;
   document.getElementById('stat-total-playtime').textContent = formatTime(game.stats.totalTimePlayed || 0);
   document.getElementById('stat-total').textContent = format(game.stats.totalParticles);
-  document.getElementById('stat-current-pps').textContent = `${format(currentPPSValue)} /秒`;
-  document.getElementById('stat-highest-pps').textContent = `${format(game.stats.highestPPS || 0)} /秒`;
+  document.getElementById('stat-current-pps').textContent = `${format(currentPPSValue)} ${t('stats.perSec')}`;
+  document.getElementById('stat-highest-pps').textContent = `${format(game.stats.highestPPS || 0)} ${t('stats.perSec')}`;
   document.getElementById('stat-highest-particles').textContent = format(game.stats.highestParticles || 0);
 
   const statPrestige = document.getElementById('stat-prestige');
   const rowPrestige = document.getElementById('row-prestige');
   if (game.stats.totalLinacs > 0 && statPrestige && rowPrestige) {
     rowPrestige.style.display = 'flex';
-    statPrestige.textContent = `${game.stats.totalLinacs} 回`;
+    statPrestige.textContent = `${game.stats.totalLinacs} ${t('stats.timesSuffix')}`;
   }
 
   const statShortestLinac = document.getElementById('stat-shortest-linac');
@@ -1149,7 +1413,7 @@ function updateStats() {
   const rowShift = document.getElementById('row-shift');
   if (game.shifts > 0 && statShift && rowShift) {
     rowShift.style.display = 'flex';
-    statShift.textContent = `${game.shifts} 回`;
+    statShift.textContent = `${game.shifts} ${t('stats.timesSuffix')}`;
   }
 
   // Accelerator 累計購入数（初回に一覧を構築し、以降は値のみ更新）
@@ -1161,7 +1425,7 @@ function updateStats() {
         const row = document.createElement('div');
         row.className = 'stat-row';
         const mkLabel = gen.name.replace('Accelerator ', '');
-        row.innerHTML = `<span class="stat-label">総${mkLabel}購入数</span><span id="stat-mk-${i}" class="stat-val">0</span>`;
+        row.innerHTML = `<span class="stat-label">${t('stats.totalMkPurchased', { mk: mkLabel })}</span><span id="stat-mk-${i}" class="stat-val">0</span>`;
         accelList.appendChild(row);
       });
     }
@@ -1175,7 +1439,7 @@ function updateStats() {
   if (game.infinity && game.infinity.crunchCount > 0) {
     const infStats = document.getElementById('infinity-stats');
     if(infStats) infStats.style.display = 'block';
-    document.getElementById('stat-crunch').textContent = `${game.infinity.crunchCount} 回`;
+    document.getElementById('stat-crunch').textContent = `${game.infinity.crunchCount} ${t('stats.timesSuffix')}`;
     const bestT = game.infinity.bestTime;
     document.getElementById('stat-best-inf').textContent = (bestT !== null) ? formatTime(bestT / 1000) : "--:--:--";
   }
@@ -1199,7 +1463,7 @@ function updateInfinityTab() {
         
         btn.innerHTML = `
           <div style="width:100%">
-            <div class="inf-desc">${up.title}${up.leveled ? '' : `: ${up.desc}`}</div>
+            <div class="inf-desc">${getUpgradeTitle(up)}${up.leveled ? '' : `: ${getUpgradeDesc(up)}`}</div>
             <div class="inf-effect-val" style="font-size:0.8em; color:#00ff9d;"></div>
           </div>
           <div class="inf-cost"></div>
@@ -1236,8 +1500,8 @@ function updateInfinityTab() {
         let currentEffect = 1;
         try { currentEffect = up.effect(game); } catch(e){}
 
-        if (effectEl) effectEl.textContent = `現在の効果: ${up.formatEffect(currentEffect)}`;
-        if (costEl) costEl.textContent = bought ? '購入済み' : 'コスト: ' + format(cost) + ' IP';
+        if (effectEl) effectEl.textContent = t('inf.currentEffect', { val: up.formatEffect(currentEffect) });
+        if (costEl) costEl.textContent = bought ? t('inf.bought') : t('inf.cost', { val: format(cost) });
       } else {
         // レベル制購入（何度でも購入可能・コストは購入毎に2倍）
         const level = getUpgradeLevel(up.id);
@@ -1249,9 +1513,9 @@ function updateInfinityTab() {
         try { nextEffect = up.nextEffect(game); } catch(e){}
 
         if (effectEl) {
-          effectEl.innerHTML = `Lv.${level}　現在：${up.formatEffect(currentEffect)}　次：${up.formatEffect(nextEffect)}`;
+          effectEl.innerHTML = t('inf.levelLine', { level: level, cur: up.formatEffect(currentEffect), next: up.formatEffect(nextEffect) });
         }
-        if (costEl) costEl.textContent = 'コスト: ' + format(cost) + ' IP';
+        if (costEl) costEl.textContent = t('inf.cost', { val: format(cost) });
       }
     });
   }
@@ -1311,7 +1575,7 @@ function triggerBigCrunch() {
       if (!game.challenge.completed) game.challenge.completed = {};
       game.challenge.completed[clearedId] = true;
       game.challenge.active = null;
-      showNotification('Challenge Complete!', `${c.title}クリア！<br>永久効果: ${c.rewardLabel}`, '🏅', 'achievement');
+      showNotification(t('notif.challengeCompleteTitle'), t('notif.challengeCompleteMsg', { title: getChallengeTitle(c), reward: getChallengeRewardLabel(c) }), '🏅', 'achievement');
       playSE('achievement');
       updateChallengeTab();
     } else {
@@ -1336,8 +1600,8 @@ function triggerBigCrunch() {
     if(overlay) overlay.classList.remove('active');
     isCrunching = false;
     showModal({
-      title: 'BIG CRUNCH 完了',
-      body: `宇宙が生まれ変わりました。<br><br>獲得 IP: <b>+${format(gainedIP)}</b><br>所持 IP: <b>${format(game.infinity.ip)}</b>`,
+      title: t('notif.crunchCompleteTitle'),
+      body: t('notif.crunchCompleteBody', { gained: format(gainedIP), total: format(game.infinity.ip) }),
       buttons: [ { label: 'OK', primary: true, onClick: closeModal } ]
     });
   }, 8500);
@@ -1376,6 +1640,7 @@ function performInfinityReset() {
 
 // --- セーブ・ロード ---
 function saveGame(isAuto = false) {
+  if (suppressUnloadSave) return; // リセット/インポート後のreload待ち中は、古いgameで上書き保存しない
   if(isCrunching && isAuto) return;
   game.lastTick = Date.now();
   game.lastSaveTime = Date.now();
@@ -1384,10 +1649,10 @@ function saveGame(isAuto = false) {
     if (!isAuto) {
       const s = document.getElementById('save-status');
       if(s) {
-        s.textContent = "保存しました";
-        setTimeout(() => s.textContent = "オートセーブ有効 (10秒毎)", 2000);
+        s.textContent = t('settings.savedStatus');
+        setTimeout(() => s.textContent = t('settings.autosaveStatus'), 2000);
       }
-      showNotification('セーブしました', '', '💾');
+      showNotification(t('notif.savedTitle'), '', '💾');
       playSE('save');
     }
   } catch(e) { console.error(e); }
@@ -1406,11 +1671,16 @@ function loadGame() {
       game.unlocks = { ...fresh.unlocks, ...(parsed.unlocks || {}) };
       game.achievements = { ...getDefaultAchievements(), ...(parsed.achievements || {}) };
       game.achievementPoints = (typeof parsed.achievementPoints === 'number') ? parsed.achievementPoints : 0;
+      game.themes = { ...fresh.themes, ...(parsed.themes || {}) };
+      if (!Array.isArray(game.themes.owned)) game.themes.owned = ['default'];
+      if (!game.themes.owned.includes('default')) game.themes.owned.unshift('default');
+      if (!game.themes.selected || !THEMES.some(th => th.id === game.themes.selected) || !game.themes.owned.includes(game.themes.selected)) {
+        game.themes.selected = 'default';
+      }
       game.lastSaveTime = (typeof parsed.lastSaveTime === 'number') ? parsed.lastSaveTime : Date.now();
       game.timeFlux = {
         time: (parsed.timeFlux && typeof parsed.timeFlux.time === 'number') ? parsed.timeFlux.time : 0,
-        speed: (parsed.timeFlux && typeof parsed.timeFlux.speed === 'number') ? parsed.timeFlux.speed : 1,
-        capLevel: (parsed.timeFlux && typeof parsed.timeFlux.capLevel === 'number') ? parsed.timeFlux.capLevel : 0
+        speed: (parsed.timeFlux && typeof parsed.timeFlux.speed === 'number') ? parsed.timeFlux.speed : 1
       };
       game.challenge = {
         ...getDefaultChallengeState(),
@@ -1441,6 +1711,9 @@ function loadGame() {
       if (game.settings.glitchEffect === undefined) game.settings.glitchEffect = true;
       if (game.settings.sfxEnabled === undefined) game.settings.sfxEnabled = true;
       if (game.settings.bgmEnabled === undefined) game.settings.bgmEnabled = true;
+      if (game.settings.autoLinacEnabled === undefined) game.settings.autoLinacEnabled = true;
+      if (!['small', 'medium', 'large'].includes(game.settings.particleDisplaySize)) game.settings.particleDisplaySize = 'medium';
+      if (!game.settings.lang || !SUPPORTED_LANGS.includes(game.settings.lang)) game.settings.lang = getLang();
 
       if (!game.stats.totalTimePlayed) game.stats.totalTimePlayed = 0;
       // 既存セーブの不足データを自動補完（統計拡張）
@@ -1492,6 +1765,8 @@ function loadGame() {
       
       const notSel = document.getElementById('notation-select');
       if(notSel) notSel.value = game.settings.notation;
+      const sizeSel = document.getElementById('particle-size-select');
+      if(sizeSel) sizeSel.value = game.settings.particleDisplaySize;
       setBuyAmount(game.settings.buyAmount);
 
       // 安全装置: 初期状態でアンロックがtrueになってしまっていたらfalseに戻す
@@ -1509,14 +1784,15 @@ function loadGame() {
 
 function hardReset() {
   showModal({
-    title: '完全初期化',
-    body: '本当に全てのデータを消去しますか？<br><b>元に戻せません。</b>',
+    title: t('notif.hardResetTitle'),
+    body: t('notif.hardResetBody'),
     buttons: [
-      { label: 'キャンセル', onClick: closeModal },
-      { label: '消去', primary: true, danger: true, onClick: () => {
+      { label: t('common.cancel'), onClick: closeModal },
+      { label: t('notif.hardResetConfirm'), primary: true, danger: true, onClick: () => {
           closeModal();
+          suppressUnloadSave = true; // reload直前のbeforeunloadで古いgameが再セーブされないようにする
           localStorage.removeItem(SAVE_KEY);
-          showNotification('リセットしました', '', '♻️');
+          showNotification(t('notif.resetTitle'), '', '♻️');
           setTimeout(() => location.reload(), 600);
         } }
     ]
@@ -1545,13 +1821,14 @@ function confirmImport() {
   try {
     const decoded = atob(str);
     JSON.parse(decoded); 
+    suppressUnloadSave = true; // reload直前のbeforeunloadで現在のgameがインポートデータを上書きしないようにする
     localStorage.setItem(SAVE_KEY, decoded);
-    showNotification('ロードしました', '', '📂');
+    showNotification(t('notif.loadedTitle'), '', '📂');
     setTimeout(() => location.reload(), 600);
   } catch(e) {
     showModal({
-      title: 'エラー',
-      body: 'データが無効です',
+      title: t('common.error'),
+      body: t('notif.invalidData'),
       buttons: [ { label: 'OK', primary: true, onClick: closeModal } ]
     });
   }
@@ -1644,7 +1921,7 @@ function checkAchievements() {
       const pts = (typeof a.points === 'number') ? a.points : 10;
       game.achievementPoints += pts;
       anyUnlocked = true;
-      showNotification(`実績解除！ ${a.title}`, `${a.desc}<br>+${pts} AP`, '🏆', 'achievement');
+      showNotification(t('notif.achievementUnlocked', { title: getAchTitle(a) }), `${getAchDesc(a)}<br>+${pts} AP`, '🏆', 'achievement');
     }
   });
 
@@ -1669,11 +1946,11 @@ function updateAchievementsTab() {
       card.innerHTML = `
         <div class="ach-card-icon">${a.icon || '🏆'}</div>
         <div>
-          <div class="ach-card-title">${a.title}</div>
-          <div class="ach-card-desc">${a.desc}</div>
+          <div class="ach-card-title">${getAchTitle(a)}</div>
+          <div class="ach-card-desc">${getAchDesc(a)}</div>
           <div class="ach-card-points">+${(typeof a.points === 'number') ? a.points : 10} AP</div>
         </div>
-        <div class="ach-card-status">未解除</div>
+        <div class="ach-card-status">${t('ach.locked')}</div>
       `;
       list.appendChild(card);
     });
@@ -1691,19 +1968,120 @@ function updateAchievementsTab() {
     card.classList.toggle('locked', !unlocked);
 
     const statusEl = card.querySelector('.ach-card-status');
-    if (statusEl) statusEl.textContent = unlocked ? '解除済み' : '未解除';
+    if (statusEl) statusEl.textContent = unlocked ? t('ach.unlocked') : t('ach.locked');
   });
 
-  const countEl = document.getElementById('ach-unlocked-count');
-  if (countEl) countEl.textContent = unlockedCount;
-  const totalEl = document.getElementById('ach-total-count');
-  if (totalEl) totalEl.textContent = ACHIEVEMENTS.length;
+  const countTextEl = document.getElementById('ach-count-text');
+  if (countTextEl) {
+    countTextEl.innerHTML = t('ach.unlockedCount', { count: `<span id="ach-unlocked-count">${unlockedCount}</span>`, total: `<span id="ach-total-count">${ACHIEVEMENTS.length}</span>` });
+  }
 }
 
-// ショップ画面の描画（実績ポイント/APの表示。今後アイテムを追加する土台）
+// ショップ画面の描画（実績ポイント/APの表示とテーマ一覧）
 function updateShopTab() {
   const apEl = document.getElementById('shop-ap-display');
   if (apEl) apEl.textContent = format((typeof game.achievementPoints === 'number') ? game.achievementPoints : 0);
+  updateThemeGrid();
+}
+
+// --- テーマ ---
+
+// game.themes.selected の色を実際にCSS変数へ反映する
+function applyTheme(id) {
+  const theme = THEMES.find(th => th.id === id) || THEMES[0];
+  const root = document.documentElement;
+  root.style.setProperty('--color-main', theme.color);
+  root.style.setProperty('--color-main-rgb', theme.rgb);
+}
+
+function updateThemeGrid() {
+  const grid = document.getElementById('theme-grid');
+  if (!grid) return;
+  if (!game.themes) game.themes = { owned: ['default'], selected: 'default' };
+
+  if (!grid.dataset.initialized) {
+    grid.dataset.initialized = '1';
+    THEMES.forEach(theme => {
+      const card = document.createElement('div');
+      card.className = 'theme-card';
+      card.id = `theme-card-${theme.id}`;
+      card.style.setProperty('--theme-swatch-color', theme.color);
+      card.innerHTML = `
+        <div class="theme-swatch"></div>
+        <div class="theme-card-name">${getThemeName(theme)}</div>
+        <div class="theme-card-status" id="theme-status-${theme.id}"></div>
+      `;
+      card.onclick = () => onThemeCardClick(theme.id);
+      grid.appendChild(card);
+    });
+  }
+
+  const currentAP = (typeof game.achievementPoints === 'number') ? game.achievementPoints : 0;
+  THEMES.forEach(theme => {
+    const card = document.getElementById(`theme-card-${theme.id}`);
+    const statusEl = document.getElementById(`theme-status-${theme.id}`);
+    if (!card || !statusEl) return;
+    const owned = game.themes.owned.includes(theme.id);
+    const equipped = game.themes.selected === theme.id;
+    const affordable = currentAP >= theme.cost;
+
+    card.classList.toggle('owned', owned);
+    card.classList.toggle('equipped', equipped);
+    card.classList.toggle('affordable', affordable);
+
+    if (equipped) statusEl.textContent = t('shop.equipped');
+    else if (owned) statusEl.textContent = t('shop.equip');
+    else statusEl.textContent = `${t('shop.buy')} (${theme.cost} AP)`;
+  });
+}
+
+function onThemeCardClick(id) {
+  if (!game.themes) game.themes = { owned: ['default'], selected: 'default' };
+  if (game.themes.owned.includes(id)) {
+    equipTheme(id);
+  } else {
+    buyTheme(id);
+  }
+}
+
+function buyTheme(id) {
+  const theme = THEMES.find(th => th.id === id);
+  if (!theme || !game.themes) return;
+  if (game.themes.owned.includes(id)) { equipTheme(id); return; }
+
+  const currentAP = (typeof game.achievementPoints === 'number') ? game.achievementPoints : 0;
+  if (currentAP < theme.cost) {
+    if (typeof playSE === 'function') playSE('error');
+    return;
+  }
+
+  game.achievementPoints = currentAP - theme.cost;
+  game.themes.owned.push(id);
+  game.themes.selected = id;
+  applyTheme(id);
+  if (typeof playSE === 'function') playSE('buy');
+  if (typeof saveGame === 'function') saveGame(true);
+  updateThemeGrid();
+  const apEl = document.getElementById('shop-ap-display');
+  if (apEl) apEl.textContent = format(game.achievementPoints);
+  if (typeof showNotification === 'function') {
+    showNotification(t('notif.themeBoughtTitle'), t('notif.themeBoughtMsg', { name: getThemeName(theme) }), '🎨');
+  }
+}
+
+function equipTheme(id) {
+  const theme = THEMES.find(th => th.id === id);
+  if (!theme || !game.themes || !game.themes.owned.includes(id)) return;
+  if (game.themes.selected === id) return;
+
+  game.themes.selected = id;
+  applyTheme(id);
+  if (typeof playSE === 'function') playSE('toggle');
+  if (typeof saveGame === 'function') saveGame(true);
+  updateThemeGrid();
+  if (typeof showNotification === 'function') {
+    showNotification(t('notif.themeEquippedTitle'), t('notif.themeEquippedMsg', { name: getThemeName(theme) }), '🎨');
+  }
 }
 
 // --- チャレンジシステム ---
@@ -1728,11 +2106,11 @@ function updateChallengeTab() {
       card.className = 'challenge-card';
       card.id = `challenge-card-${c.id}`;
       card.innerHTML = `
-        <div class="challenge-card-num">Challenge ${c.number || (i + 1)}</div>
-        <div class="challenge-card-title">${c.title}</div>
-        <div class="challenge-card-effect">${c.effectLabel}</div>
-        <div class="challenge-card-reward-label">報酬</div>
-        <div class="challenge-card-reward-value">${c.rewardLabel}</div>
+        <div class="challenge-card-num">${t('challenge.number', { num: c.number || (i + 1) })}</div>
+        <div class="challenge-card-title">${getChallengeTitle(c)}</div>
+        <div class="challenge-card-effect">${getChallengeEffectLabel(c)}</div>
+        <div class="challenge-card-reward-label">${t('challenge.rewardLabel')}</div>
+        <div class="challenge-card-reward-value">${getChallengeRewardLabel(c)}</div>
         <button id="challenge-btn-${c.id}" class="ui-btn primary"></button>
       `;
       list.appendChild(card);
@@ -1751,15 +2129,15 @@ function updateChallengeTab() {
     card.classList.toggle('active', active);
 
     if (completed) {
-      btn.textContent = '✓ CLEAR';
+      btn.textContent = t('challenge.clear');
       btn.classList.add('disabled');
       btn.onclick = null;
     } else if (active) {
-      btn.textContent = 'チャレンジ中';
+      btn.textContent = t('challenge.inProgress');
       btn.classList.add('disabled');
       btn.onclick = null;
     } else {
-      btn.textContent = '開始';
+      btn.textContent = t('challenge.start');
       btn.classList.remove('disabled');
       btn.onclick = () => startChallenge(c.id);
     }
@@ -1775,11 +2153,11 @@ function startChallenge(id) {
   if (game.challenge.completed && game.challenge.completed[id]) return; // クリア済みは再開始不可
 
   showModal({
-    title: `Challenge ${c.number || ''}`,
-    body: 'チャレンジを開始しますか？<br><br>ゲームはLinac・Shift・Infinity強化を含めて<br>現在の宇宙をリセットします。<br>（所持IPは失われません）',
+    title: t('challenge.number', { num: c.number || '' }),
+    body: t('challenge.startConfirmBody'),
     buttons: [
-      { label: 'キャンセル', onClick: closeModal },
-      { label: 'OK', primary: true, onClick: () => { closeModal(); executeStartChallenge(id); } }
+      { label: t('common.cancel'), onClick: closeModal },
+      { label: t('common.ok'), primary: true, onClick: () => { closeModal(); executeStartChallenge(id); } }
     ]
   });
 }
@@ -1817,7 +2195,7 @@ function executeStartChallenge(id) {
   updateUI(0);
   updateInfinityTab();
   updateChallengeTab();
-  showNotification('チャレンジ開始', c.title, '🎯');
+  showNotification(t('notif.challengeStartTitle'), getChallengeTitle(c), '🎯');
   playSE('challenge');
 }
 
@@ -1840,6 +2218,8 @@ function switchTab(name, btn) {
         if(b.getAttribute('onclick') && b.getAttribute('onclick').includes(name)) b.classList.add('active');
     });
   }
+
+  if (name === 'shop' && typeof updateShopTab === 'function') updateShopTab();
 }
 
 // Infinity画面内のサブタブ切り替え（Main / Break Infinity）
@@ -1863,7 +2243,8 @@ function initSettingsUI() {
   const accelList = document.getElementById('auto-accel-list');
   const glitchContainer = document.getElementById('glitch-toggle-container');
   const audioContainer = document.getElementById('audio-toggle-container');
-  if (!toggleContainer && !accelList && !glitchContainer && !audioContainer) return;
+  const autoLinacContainer = document.getElementById('auto-linac-toggle-container');
+  if (!toggleContainer && !accelList && !glitchContainer && !audioContainer && !autoLinacContainer) return;
 
   const createToggle = (id, label, settingKey) => {
     const wrapper = document.createElement('div');
@@ -1880,7 +2261,7 @@ function initSettingsUI() {
       if(!game.settings) game.settings = {};
       game.settings[settingKey] = e.target.checked;
       saveGame(true);
-      showNotification('設定を保存しました', '', '⚙️');
+      showNotification(t('notif.settingsSaved'), '', '⚙️');
       if (typeof AudioSystem !== 'undefined') {
         if (settingKey === 'bgmEnabled') AudioSystem.refreshBGMState();
         else playSE('toggle');
@@ -1892,23 +2273,23 @@ function initSettingsUI() {
   // 画面演出（グリッチ/ブルブル効果）のON/OFF切り替え
   if (glitchContainer && !glitchContainer.dataset.initialized) {
     glitchContainer.dataset.initialized = '1';
-    glitchContainer.appendChild(createToggle('chk-glitch', '画面演出（グリッチ効果）を有効にする', 'glitchEffect'));
+    glitchContainer.appendChild(createToggle('chk-glitch', t('settings.glitchToggle'), 'glitchEffect'));
   }
 
   // SE・BGMのON/OFF切り替え
   if (audioContainer && !audioContainer.dataset.initialized) {
     audioContainer.dataset.initialized = '1';
-    audioContainer.appendChild(createToggle('chk-sfx', 'SE（効果音）を有効にする', 'sfxEnabled'));
-    audioContainer.appendChild(createToggle('chk-bgm', 'BGM（背景音楽）を有効にする', 'bgmEnabled'));
+    audioContainer.appendChild(createToggle('chk-sfx', t('settings.sfxToggle'), 'sfxEnabled'));
+    audioContainer.appendChild(createToggle('chk-bgm', t('settings.bgmToggle'), 'bgmEnabled'));
   }
 
   // 演出スキップ（設定画面）
   // それぞれ該当する演出を一度でも体験してから表示する（未体験の項目は表示しない）
   if (toggleContainer && !toggleContainer.dataset.initialized) {
     toggleContainer.dataset.initialized = '1';
-    toggleContainer.appendChild(createToggle('chk-linac', 'ライナック演出をスキップ', 'skipLinacConf'));
-    toggleContainer.appendChild(createToggle('chk-shift', 'シフト演出をスキップ', 'skipShiftConf'));
-    toggleContainer.appendChild(createToggle('chk-crunch', 'Big Crunch演出をスキップ', 'skipCrunchAnim'));
+    toggleContainer.appendChild(createToggle('chk-linac', t('settings.skipLinac'), 'skipLinacConf'));
+    toggleContainer.appendChild(createToggle('chk-shift', t('settings.skipShift'), 'skipShiftConf'));
+    toggleContainer.appendChild(createToggle('chk-crunch', t('settings.skipCrunch'), 'skipCrunchAnim'));
     updateSkipToggleVisibility();
   }
 
@@ -1920,18 +2301,32 @@ function initSettingsUI() {
       row.className = 'stat-row';
       row.innerHTML = `
         <span class="stat-label">${gen.name}</span>
-        <span id="auto-accel-badge-${index}" class="auto-badge">必要: 1e${50 + index * 10}</span>
+        <span id="auto-accel-badge-${index}" class="auto-badge">${t('auto.required', { val: `1e${50 + index * 10}` })}</span>
       `;
       accelList.appendChild(row);
     });
   }
 
+  // 自動ライナック（Challenge 3クリアで解放）のON/OFF切り替え
+  if (autoLinacContainer && !autoLinacContainer.dataset.initialized) {
+    autoLinacContainer.dataset.initialized = '1';
+    autoLinacContainer.appendChild(createToggle('chk-auto-linac', t('auto.linacToggleLabel'), 'autoLinacEnabled'));
+  }
+
   // 未解放時はタブ自体を非表示にする（Coming Soon等は表示しない・空白も作らない）
   updateAutomationSectionVisibility();
+  updateAutoLinacVisibility();
+}
+
+// 自動ライナックUI（Automation画面）の表示/非表示を、Challenge 3クリア状況に応じて切り替える
+function updateAutoLinacVisibility() {
+  const container = document.getElementById('auto-linac-container');
+  if (container) container.style.display = isAutoLinacUnlocked() ? 'block' : 'none';
 }
 
 // 自動化画面の内容を毎フレーム更新（Accelerator一覧の状態表示）
 function updateAutomationTab() {
+  updateAutoLinacVisibility();
   game.generators.forEach((gen, index) => {
     const badge = document.getElementById(`auto-accel-badge-${index}`);
     if (!badge) return;
@@ -1942,14 +2337,14 @@ function updateAutomationTab() {
       badge.onclick = () => toggleAutobuyer(index);
       if (gen.autoActive) {
         badge.classList.add('active');
-        badge.textContent = "自動: ON";
+        badge.textContent = t('auto.on');
       } else {
         badge.classList.add('inactive');
-        badge.textContent = "自動: OFF";
+        badge.textContent = t('auto.off');
       }
     } else {
       const th = Number('1e' + (50 + index * 10));
-      badge.textContent = `必要: ${format(th)}`;
+      badge.textContent = t('auto.required', { val: format(th) });
     }
   });
 }
@@ -1968,7 +2363,7 @@ function updateSkipToggleVisibility() {
 
 // いずれかのAcceleratorでオートバイヤーが解放済みかどうか（自動化タブの表示条件）
 function anyAutomationUnlocked() {
-  return !!(game.generators && game.generators.some(g => g.autoUnlocked));
+  return !!(game.generators && game.generators.some(g => g.autoUnlocked)) || isAutoLinacUnlocked();
 }
 
 // Automationタブボタンの表示/非表示を更新
@@ -1986,6 +2381,7 @@ document.addEventListener('keydown', (e) => {
     animateButton(index);
   }
   if (key === 'm') {
+    if (isChallengeAutomationDisabled()) return; // Challenge 3中はMキーでの最大購入を無効化する
     game.generators.forEach((_, i) => buyMaxGenerator(i));
     for(let i=0; i<8; i++) animateButton(i);
   }
@@ -1994,10 +2390,10 @@ document.addEventListener('keydown', (e) => {
     saveGame();
     const s = document.getElementById('save-status');
     if(s) {
-        s.textContent = "★ クイックセーブ！ ★";
+        s.textContent = t('settings.quickSaveStatus');
         s.style.color = "#00ff9d";
         setTimeout(() => { 
-            s.textContent = "オートセーブ有効 (10秒毎)"; 
+            s.textContent = t('settings.autosaveStatus'); 
             s.style.color = "";
         }, 2000);
     }
@@ -2014,42 +2410,42 @@ function animateButton(index) {
 
 // ニュースティッカー
 const NEWS_DATA = [
-  { req: 0, text: "システム起動... 観測を開始します。" },
-  { req: 0, text: "近所の猫が粒子まみれになっています。" },
-  { req: 0, text: "電気代の請求書が怖くてポストを開けられません。" },
-  { req: 0, text: "【TIPS】キーボードの 'M' で最大購入、'S' でセーブ可能です。" },
-  { req: 50, text: "研究室のコーヒーが勝手に沸騰し始めました。" },
-  { req: 100, text: "微細な振動が床から伝わってきます。" },
-  { req: 500, text: "「ただの光る点だ」と友人に笑われました。" },
-  { req: 1000, text: "近所のコンビニで「粒子払い」が可能になりました。" },
-  { req: 5000, text: "あなたの指先から微弱なガンマ線が出ています。" },
-  { req: 1e4, text: "部屋の照明が不要になりました。" },
-  { req: 5e4, text: "スマホのバッテリーが減らなくなりました。" },
-  { req: 1e5, text: "科学雑誌「ムー」があなたの特集を組みました。" },
-  { req: 5e5, text: "水道からプラズマが出るという苦情が殺到しています。" },
-  { req: 1e6, text: "物理学者があなたの家の前でデモ行進をしています。" },
-  { req: 1e7, text: "税務署が「粒子の課税区分」について頭を抱えています。" },
-  { req: 1e8, text: "地元の天気予報: 「ところにより粒子、のち時空の歪みでしょう」" },
-  { req: 1e9, text: "世界中のスパコンが計算に追いつけません。" },
-  { req: 1e10, text: "月面から「コッチヲ見ルナ」という信号を受信しました。" },
-  { req: 1e11, text: "あなたのくしゃみで株価が乱高下しています。" },
-  { req: 1e12, text: "空間に亀裂が見えますが、気にしてはいけません。" },
-  { req: 1e13, text: "物理法則のアップデート待機中... (99%)" },
-  { req: 1e14, text: "昨日の夕飯が何だったか、歴史から消滅しました。" },
-  { req: 1e15, text: "銀河系の質量バランスが崩れ始めています。" },
-  { req: 1e18, text: "「重力」のサブスクリプション期限が切れそうです。" },
-  { req: 1e20, text: "もう何も怖くない。" },
-  { req: 1e22, text: "シュレーディンガーの猫が、箱の中から餌を要求しています。" },
-  { req: 1e25, text: "全宇宙のエントロピーが減少に転じました。" },
-  { req: 1e30, text: "神様から「やりすぎ」という苦情メールが届きました。" },
-  { req: 1e50, text: "宇宙のデータ容量が圧迫されています。" },
-  { req: 1e60, text: "現実と虚構の境界線が溶けてバターになりました。" },
-  { req: 1e80, text: "数学者が「1+1=粒子」であることを証明しました。" },
-  { req: 1e100, text: "ERROR: テキスト出力機能に異常が発生しています。" },
-  { req: 1e150, text: "あ　な　た　は　誰　で　す　か　？" },
-  { req: 1e200, text: "NULL POINTER EXCEPTION: UNIVERSE NOT FOUND." },
-  { req: 1e250, text: "システム警告: ビッグ・クランチが接近しています。" },
-  { req: 1e300, text: "サヨウナラ。" }
+  { req: 0, key: 'news.0' },
+  { req: 0, key: 'news.1' },
+  { req: 0, key: 'news.2' },
+  { req: 0, key: 'news.3' },
+  { req: 50, key: 'news.4' },
+  { req: 100, key: 'news.5' },
+  { req: 500, key: 'news.6' },
+  { req: 1000, key: 'news.7' },
+  { req: 5000, key: 'news.8' },
+  { req: 1e4, key: 'news.9' },
+  { req: 5e4, key: 'news.10' },
+  { req: 1e5, key: 'news.11' },
+  { req: 5e5, key: 'news.12' },
+  { req: 1e6, key: 'news.13' },
+  { req: 1e7, key: 'news.14' },
+  { req: 1e8, key: 'news.15' },
+  { req: 1e9, key: 'news.16' },
+  { req: 1e10, key: 'news.17' },
+  { req: 1e11, key: 'news.18' },
+  { req: 1e12, key: 'news.19' },
+  { req: 1e13, key: 'news.20' },
+  { req: 1e14, key: 'news.21' },
+  { req: 1e15, key: 'news.22' },
+  { req: 1e18, key: 'news.23' },
+  { req: 1e20, key: 'news.24' },
+  { req: 1e22, key: 'news.25' },
+  { req: 1e25, key: 'news.26' },
+  { req: 1e30, key: 'news.27' },
+  { req: 1e50, key: 'news.28' },
+  { req: 1e60, key: 'news.29' },
+  { req: 1e80, key: 'news.30' },
+  { req: 1e100, key: 'news.31' },
+  { req: 1e150, key: 'news.32' },
+  { req: 1e200, key: 'news.33' },
+  { req: 1e250, key: 'news.34' },
+  { req: 1e300, key: 'news.35' },
 ];
 
 function updateNewsText() {
@@ -2058,7 +2454,7 @@ function updateNewsText() {
   const availableNews = NEWS_DATA.filter(n => toDecimal(game.particles).gte(n.req));
   if (availableNews.length === 0) return;
   const randIndex = Math.floor(Math.random() * availableNews.length);
-  content.textContent = availableNews[randIndex].text;
+  content.textContent = t(availableNews[randIndex].key);
 }
 
 function initNews() {
@@ -2084,7 +2480,7 @@ function renderGeneratorRow(index) {
     <div class="gen-info">
       <div class="gen-name">
         ${gen.name} 
-        <span id="auto-badge-${index}" class="auto-badge">必要: 1e${50 + index*10}</span>
+        <span id="auto-badge-${index}" class="auto-badge">${t('auto.required', { val: `1e${50 + index*10}` })}</span>
       </div>
       <div class="gen-amount" id="amount-${index}">0</div>
       
@@ -2099,7 +2495,7 @@ function renderGeneratorRow(index) {
     </div>
     <div class="btn-group">
       <button id="btn-${index}" class="buy-btn" onclick="buyGenerator(${index})">
-        1個購入
+        ${t('common.buyOne')}
       </button>
     </div>
   `;
@@ -2113,11 +2509,45 @@ function renderUnlockedGeneratorRows() {
   });
 }
 
+// 言語切り替え時に、一度だけ生成される動的UI（実績・チャレンジ・強化・自動化など）を
+// 作り直して新しい言語の文言で再描画する
+function rebuildDynamicUI() {
+  ['achievements-list', 'challenge-list', 'infinity-upgrades-container',
+   'accel-stats-list', 'auto-accel-list', 'setting-toggles-container',
+   'glitch-toggle-container', 'audio-toggle-container', 'theme-grid',
+   'auto-linac-toggle-container'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.innerHTML = ''; el.dataset.initialized = ''; }
+  });
+  if (typeof initSettingsUI === 'function') initSettingsUI();
+  if (typeof updateAchievementsTab === 'function') updateAchievementsTab();
+  if (typeof updateChallengeTab === 'function') updateChallengeTab();
+  if (typeof updateInfinityTab === 'function') updateInfinityTab();
+  if (typeof updateStats === 'function') updateStats();
+  if (typeof updateAutomationTab === 'function') updateAutomationTab();
+  if (typeof updateShopTab === 'function') updateShopTab();
+  if (typeof updateTimeFluxTab === 'function') updateTimeFluxTab();
+  if (typeof updateBreakInfinityTab === 'function') updateBreakInfinityTab();
+  if (typeof updateBreakInfinityUnlockSection === 'function') updateBreakInfinityUnlockSection();
+  if (typeof updateUI === 'function') updateUI(currentPPSValue);
+  if (typeof updateNewsText === 'function') updateNewsText();
+}
+
 function init() {
   console.log("Game Initializing...");
 
+  // 起動演出の最中に判定しておく（loadGame()実行前＝セーブも言語設定も無ければ初回起動とみなす）
+  const isFirstLaunch = !localStorage.getItem(SAVE_KEY) && !localStorage.getItem(LANG_STORAGE_KEY);
+
   // セーブデータの読込を先に行い、解放済みのAcceleratorだけを描画する
   loadGame();
+
+  if (!game.themes) game.themes = { owned: ['default'], selected: 'default' };
+  applyTheme(game.themes.selected);
+  applyParticleDisplaySize(game.settings.particleDisplaySize);
+
+  document.documentElement.lang = getLang();
+  applyStaticTranslations();
 
   const container = document.getElementById('generator-container');
   if (container) container.innerHTML = '';
@@ -2139,6 +2569,45 @@ function init() {
   initBreakInfinity();
   if (typeof AudioSystem !== 'undefined') AudioSystem.initOnFirstInteraction();
 
+  // 起動演出（ロゴ表示）が終わってから、初回起動なら言語選択、それ以外は通常通りゲームへ進む
+  finishBootSequence(isFirstLaunch);
+}
+
+const BOOT_SPLASH_MIN_MS = 1900;  // ロゴ演出を最低これだけ見せてから消す
+const BOOT_SPLASH_FADE_MS = 700;  // フェードアウトのtransition時間（CSS側と合わせる）
+
+function finishBootSequence(isFirstLaunch) {
+  setTimeout(() => {
+    const splash = document.getElementById('boot-splash');
+    if (splash) splash.classList.add('fade-out');
+    setTimeout(() => {
+      if (splash) splash.style.display = 'none';
+      if (isFirstLaunch) {
+        showInitialLangSelect();
+      } else {
+        proceedPastBoot();
+      }
+    }, BOOT_SPLASH_FADE_MS);
+  }, BOOT_SPLASH_MIN_MS);
+}
+
+// 初回起動時のみ表示する言語選択オーバーレイ
+function showInitialLangSelect() {
+  const overlay = document.getElementById('lang-select-overlay');
+  if (!overlay) { proceedPastBoot(); return; }
+  overlay.classList.add('active');
+}
+
+// 言語選択ボタン（index.html）から呼ばれる
+function selectInitialLang(lang) {
+  const overlay = document.getElementById('lang-select-overlay');
+  if (overlay) overlay.classList.remove('active');
+  if (typeof setLang === 'function') setLang(lang);
+  proceedPastBoot();
+}
+
+// 起動演出（＋初回言語選択）が完了した後、通常のゲーム開始処理へ進む
+function proceedPastBoot() {
   // オフライン進行のチェック（十分な経過時間があれば専用画面を表示し、
   // 「開始」または「スキップ」が完了してから通常のゲームループへ進む）
   if (typeof checkAndShowOfflineProgress === 'function') {
