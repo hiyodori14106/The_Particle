@@ -86,6 +86,8 @@ function makeMkPowerUpgrade(id, targetGen) {
   };
 }
 
+const INF_UPGRADE_MAX_LEVEL = 10; // レベル制Infinity強化（Mk.1〜Mk.8, IP倍加）の最大レベル
+
 const INF_UPGRADES = [
   {
     id: 0,
@@ -359,7 +361,11 @@ const CHALLENGES = [
     effectLabelKey: 'ch.highCost.effectLabel',
     rewardLabelKey: 'ch.highCost.rewardLabel',
     costMult: 2,        // チャレンジ中のみ適用されるコスト倍率（購入コストが上昇）
-    costRewardMult: 0.95 // クリア後、永久に適用されるコスト倍率（購入コストが減少）
+    costRewardMult: 0.95, // クリア後、永久に適用されるコスト倍率（購入コストが減少）
+    // Mk.1のコストは baseCost(10) × costMult(2) = 20 になるため、
+    // 通常の初期粒子数(10)のままだと1個も購入できず詰んでしまう。
+    // このチャレンジのみ初期粒子数を20にして必ず1個目を買えるようにする。
+    startParticles: 20
   },
   {
     id: 'backToBasics',
@@ -473,7 +479,7 @@ function getInitialState() {
     achievementPoints: 0,
     themes: { owned: ['default'], selected: 'default' },
     lastSaveTime: Date.now(),
-    timeFlux: { time: 0, speed: 1 },
+    timeFlux: { time: 0, speed: 1, capLevel: 0 },
     challenge: getDefaultChallengeState(),
     breakInfinity: (typeof getDefaultBreakInfinityState === 'function') ? getDefaultBreakInfinityState() : { unlocked: false },
     lastTick: Date.now(),
@@ -936,18 +942,17 @@ function runAutobuyers() {
       gen.autoUnlocked = true;
     }
     if (gen.autoUnlocked && gen.autoActive) {
-      for(let k=0; k<10; k++) {
-        const cost = getCost(gen);
-        if (game.particles.gte(cost)) {
-          game.particles = toDecimal(game.particles).sub(cost);
-          gen.amount = amtAdd(gen.amount, 1);
-          gen.bought++;
-          gen.production *= 1.1;
-          if (!game.stats.totalMkPurchased) game.stats.totalMkPurchased = [0,0,0,0,0,0,0,0];
-          game.stats.totalMkPurchased[index] = (game.stats.totalMkPurchased[index] || 0) + 1;
-        } else {
-          break;
-        }
+      // 「買えるだけ買う」ことで、オフライン進行やTime Warpなど1回のtickが
+      // 長時間に相当する場合でも自動化が正しく機能するようにする
+      // （固定回数のループだと、大きくジャンプしたdtに対して購入量が頭打ちになってしまう）
+      const { count, cost } = calculateAffordablePurchase(gen, BUY_MAX_SAFETY_CAP);
+      if (count > 0) {
+        game.particles = toDecimal(game.particles).sub(cost);
+        gen.amount = amtAdd(gen.amount, count);
+        gen.bought += count;
+        gen.production *= Math.pow(1.1, count);
+        if (!game.stats.totalMkPurchased) game.stats.totalMkPurchased = [0,0,0,0,0,0,0,0];
+        game.stats.totalMkPurchased[index] = (game.stats.totalMkPurchased[index] || 0) + count;
       }
       revealNextGenerator(index);
     }
@@ -1175,7 +1180,8 @@ function buyInfinityUpgrade(id) {
     return;
   }
 
-  // レベル制購入（購入毎にコストが2倍）
+  // レベル制購入（購入毎にコストが2倍・最大レベルまで）
+  if (getUpgradeLevel(id) >= INF_UPGRADE_MAX_LEVEL) return;
   const cost = getUpgradeCost(upgrade);
   if (currentIP.gte(cost)) {
     game.infinity.ip = currentIP.sub(cost);
@@ -1510,19 +1516,22 @@ function updateInfinityTab() {
         if (effectEl) effectEl.textContent = t('inf.currentEffect', { val: up.formatEffect(currentEffect) });
         if (costEl) costEl.textContent = bought ? t('inf.bought') : t('inf.cost', { val: format(cost) });
       } else {
-        // レベル制購入（何度でも購入可能・コストは購入毎に2倍）
+        // レベル制購入（最大レベルまで購入可能・コストは購入毎に2倍）
         const level = getUpgradeLevel(up.id);
+        const isMaxLevel = level >= INF_UPGRADE_MAX_LEVEL;
         btn.classList.remove('bought');
-        btn.classList.toggle('disabled', currentIP.lt(cost));
+        btn.classList.toggle('disabled', isMaxLevel || currentIP.lt(cost));
 
         let currentEffect = 1, nextEffect = 1;
         try { currentEffect = up.effect(game); } catch(e){}
         try { nextEffect = up.nextEffect(game); } catch(e){}
 
         if (effectEl) {
-          effectEl.innerHTML = t('inf.levelLine', { level: level, cur: up.formatEffect(currentEffect), next: up.formatEffect(nextEffect) });
+          effectEl.innerHTML = isMaxLevel
+            ? t('inf.levelLineMax', { level: level, cur: up.formatEffect(currentEffect) })
+            : t('inf.levelLine', { level: level, cur: up.formatEffect(currentEffect), next: up.formatEffect(nextEffect) });
         }
-        if (costEl) costEl.textContent = t('inf.cost', { val: format(cost) });
+        if (costEl) costEl.textContent = isMaxLevel ? t('inf.maxLevel') : t('inf.cost', { val: format(cost) });
       }
     });
   }
@@ -1687,7 +1696,8 @@ function loadGame() {
       game.lastSaveTime = (typeof parsed.lastSaveTime === 'number') ? parsed.lastSaveTime : Date.now();
       game.timeFlux = {
         time: (parsed.timeFlux && typeof parsed.timeFlux.time === 'number') ? parsed.timeFlux.time : 0,
-        speed: (parsed.timeFlux && typeof parsed.timeFlux.speed === 'number') ? parsed.timeFlux.speed : 1
+        speed: (parsed.timeFlux && typeof parsed.timeFlux.speed === 'number') ? parsed.timeFlux.speed : 1,
+        capLevel: (parsed.timeFlux && typeof parsed.timeFlux.capLevel === 'number' && parsed.timeFlux.capLevel >= 0) ? parsed.timeFlux.capLevel : 0
       };
       game.challenge = {
         ...getDefaultChallengeState(),
@@ -2246,9 +2256,9 @@ function updateChallengeTab() {
       btn.classList.add('disabled');
       btn.onclick = null;
     } else if (active) {
-      btn.textContent = t('challenge.inProgress');
-      btn.classList.add('disabled');
-      btn.onclick = null;
+      btn.textContent = t('challenge.exit');
+      btn.classList.remove('disabled');
+      btn.onclick = () => exitChallenge(c.id);
     } else {
       btn.textContent = t('challenge.start');
       btn.classList.remove('disabled');
@@ -2285,6 +2295,56 @@ function executeStartChallenge(id) {
     autoActive: g.autoActive
   }));
 
+  game.particles = new Decimal(c.startParticles || 10);
+  game.linacs = 0;
+  game.shifts = 0;
+  game.stats.startTime = Date.now();
+  game.stats.lastLinacCycleStart = Date.now();
+  game.generators = getInitialGenerators().map((g, i) => ({
+    ...g,
+    autoUnlocked: preservedAuto[i] ? preservedAuto[i].autoUnlocked : g.autoUnlocked,
+    autoActive: preservedAuto[i] ? preservedAuto[i].autoActive : g.autoActive
+  }));
+
+  // Infinity強化・所持IPはチャレンジ開始で失われない（現在の宇宙のみリセットする）
+  if (!game.infinity) game.infinity = { ip: 0, crunchCount: 0, bestTime: null, upgrades: [], levels: {}, broken: false };
+
+  game.challenge.active = id;
+
+  saveGame();
+  updateUI(0);
+  updateInfinityTab();
+  updateChallengeTab();
+  showNotification(t('notif.challengeStartTitle'), getChallengeTitle(c), '🎯');
+  playSE('challenge');
+}
+
+// チャレンジを途中で中断する（確認ダイアログ経由）
+function exitChallenge(id) {
+  if (!game.challenge || game.challenge.active !== id) return;
+  const c = CHALLENGES.find(ch => ch.id === id);
+  if (!c) return;
+
+  showModal({
+    title: t('challenge.number', { num: c.number || '' }),
+    body: t('challenge.exitConfirmBody'),
+    buttons: [
+      { label: t('common.cancel'), onClick: closeModal },
+      { label: t('common.ok'), primary: true, danger: true, onClick: () => { closeModal(); executeExitChallenge(id); } }
+    ]
+  });
+}
+
+// チャレンジ中断の実処理: 現在の宇宙（粒子・Linac・Shift）をInfinity直後の状態にリセットする。
+// クリア扱いにはならず、Infinity強化・所持IPも失われない。
+function executeExitChallenge(id) {
+  if (!game.challenge || game.challenge.active !== id) return;
+
+  const preservedAuto = game.generators.map(g => ({
+    autoUnlocked: g.autoUnlocked,
+    autoActive: g.autoActive
+  }));
+
   game.particles = new Decimal(10);
   game.linacs = 0;
   game.shifts = 0;
@@ -2296,20 +2356,14 @@ function executeStartChallenge(id) {
     autoActive: preservedAuto[i] ? preservedAuto[i].autoActive : g.autoActive
   }));
 
-  // Infinity強化はリセットする（現在の宇宙のリセットに準じる）が、
-  // 所持IPそのものはチャレンジ開始で失われないようにする
-  if (!game.infinity) game.infinity = { ip: 0, crunchCount: 0, bestTime: null, upgrades: [], levels: {}, broken: false };
-  game.infinity.upgrades = [];
-  game.infinity.levels = {};
-
-  game.challenge.active = id;
+  game.challenge.active = null;
 
   saveGame();
   updateUI(0);
   updateInfinityTab();
   updateChallengeTab();
-  showNotification(t('notif.challengeStartTitle'), getChallengeTitle(c), '🎯');
-  playSE('challenge');
+  showNotification(t('notif.challengeExitTitle'), t('notif.challengeExitMsg'), '🚪');
+  playSE('toggle');
 }
 
 // --- UI操作 ---

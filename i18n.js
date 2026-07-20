@@ -157,8 +157,10 @@ const I18N = {
     'inf.upgradeHeader': '強化',
     'inf.currentEffect': '現在の効果: {val}',
     'inf.levelLine': 'Lv.{level}　現在：{cur}　次：{next}',
+    'inf.levelLineMax': 'Lv.{level}（最大）　現在：{cur}',
     'inf.bought': '購入済み',
     'inf.cost': 'コスト: {val} IP',
+    'inf.maxLevel': '最大レベル',
 
     // --- Break Infinity ---
     'bi.header': 'Break Infinity',
@@ -176,8 +178,10 @@ const I18N = {
     'challenge.clear': '✓ CLEAR',
     'challenge.inProgress': 'チャレンジ中',
     'challenge.start': '開始',
+    'challenge.exit': '中断する',
     'challenge.number': 'Challenge {num}',
-    'challenge.startConfirmBody': 'チャレンジを開始しますか？<br><br>ゲームはLinac・Shift・Infinity強化を含めて<br>現在の宇宙をリセットします。<br>（所持IPは失われません）',
+    'challenge.startConfirmBody': 'チャレンジを開始しますか？<br><br>ゲームはLinac・Shiftを含めて<br>現在の宇宙をリセットします。<br>（所持IP・Infinity強化は失われません）',
+    'challenge.exitConfirmBody': 'チャレンジを中断しますか？<br><br>粒子・Linac・Shiftが<br>Infinity直後の状態にリセットされます。<br>（所持IP・Infinity強化は失われません）',
 
     // --- オフライン進行 ---
     'offline.title': 'オフライン進行',
@@ -218,6 +222,8 @@ const I18N = {
     'notif.challengeCompleteTitle': 'Challenge Complete!',
     'notif.challengeCompleteMsg': '{title}クリア！<br>永久効果: {reward}',
     'notif.challengeStartTitle': 'チャレンジ開始',
+    'notif.challengeExitTitle': 'チャレンジ中断',
+    'notif.challengeExitMsg': '現在の宇宙をInfinity直後の状態にリセットしました。',
     'notif.savedTitle': 'セーブしました',
     'notif.loadedTitle': 'ロードしました',
     'notif.resetTitle': 'リセットしました',
@@ -516,8 +522,10 @@ const I18N = {
     'inf.upgradeHeader': 'Upgrades',
     'inf.currentEffect': 'Current effect: {val}',
     'inf.levelLine': 'Lv.{level}　Current: {cur}　Next: {next}',
+    'inf.levelLineMax': 'Lv.{level} (MAX)　Current: {cur}',
     'inf.bought': 'Purchased',
     'inf.cost': 'Cost: {val} IP',
+    'inf.maxLevel': 'Max Level',
 
     // --- Break Infinity ---
     'bi.header': 'Break Infinity',
@@ -535,8 +543,10 @@ const I18N = {
     'challenge.clear': '✓ CLEAR',
     'challenge.inProgress': 'In Progress',
     'challenge.start': 'Start',
+    'challenge.exit': 'Abandon',
     'challenge.number': 'Challenge {num}',
-    'challenge.startConfirmBody': 'Start this challenge?<br><br>This resets your current universe, including<br>Linac, Shift, and Infinity upgrades.<br>(Your IP will not be lost)',
+    'challenge.startConfirmBody': 'Start this challenge?<br><br>This resets your current universe, including<br>Linac and Shift.<br>(Your IP and Infinity upgrades will not be lost)',
+    'challenge.exitConfirmBody': 'Abandon this challenge?<br><br>Particles, Linac, and Shift will be reset<br>to their state right after Infinity.<br>(Your IP and Infinity upgrades will not be lost)',
 
     // --- Offline progress ---
     'offline.title': 'Offline Progress',
@@ -577,6 +587,8 @@ const I18N = {
     'notif.challengeCompleteTitle': 'Challenge Complete!',
     'notif.challengeCompleteMsg': 'Cleared {title}!<br>Permanent effect: {reward}',
     'notif.challengeStartTitle': 'Challenge Started',
+    'notif.challengeExitTitle': 'Challenge Abandoned',
+    'notif.challengeExitMsg': 'Your current universe has been reset to its state right after Infinity.',
     'notif.savedTitle': 'Saved',
     'notif.loadedTitle': 'Loaded',
     'notif.resetTitle': 'Reset complete',
