@@ -30,6 +30,8 @@ const I18N = {
     'main.title': 'the-Particle',
     'main.linac': 'ライナック',
     'main.shift': 'シフト',
+    'main.bigCrunch': 'ビッグクランチ',
+    'main.bigCrunchTitle': 'ビッグクランチを実行してIPを獲得します（獲得倍率: x{mult}）',
     'main.currentShiftMult': '現在のライナック倍率:',
     'main.shiftCount': '(シフト回数: {count})',
     'main.buyAmountLabel': '購入数:',
@@ -169,8 +171,10 @@ const I18N = {
     'bi.unlockBtn': '上限を解除 (必要: {cost} IP)',
     'bi.unlockedMsg1': 'LIMIT BROKEN',
     'bi.unlockedMsg2': '上限解除済み・1.78e308を超えて進行できます',
-    'bi.notImplementedTitle': '未実装',
-    'bi.notImplementedBody': 'Break Infinityはまだ実装されていません。<br>今後のアップデートをお待ちください。',
+    'bi.unlockedNotifTitle': '上限解除!',
+    'bi.unlockedNotifBody': 'Break Infinityが解放されました。1.79e308を超えて進行できます。',
+    'bi.insufficientIpTitle': 'IPが不足しています',
+    'bi.insufficientIpBody': 'Break Infinityの解放には {cost} IP が必要です（所持: {have} IP）。',
 
     // --- チャレンジ画面 ---
     'challenge.header': 'チャレンジ',
@@ -248,6 +252,10 @@ const I18N = {
     'infUpgrade.mkDesc': 'Mk.{n} の生産倍率を指数で強化',
     'infUpgrade.ipDoubleTitle': 'IP倍加',
     'infUpgrade.ipDoubleDesc': 'Big Crunchで獲得するIPを増加させる',
+    'infUpgrade.crunchPairTitle': 'Mk.{a}・Mk.{b} 共鳴強化',
+    'infUpgrade.crunchPairDesc': 'インフィニティ回数(Big Crunch回数)に応じてMk.{a}とMk.{b}の生産倍率が増加',
+    'infUpgrade.shiftBoostTitle': 'シフト共鳴強化',
+    'infUpgrade.shiftBoostDesc': 'シフト1回あたりのライナック倍率上昇量を+0.2する',
 
     // --- 実績コンテンツ ---
     'ach.firstStep.title': '初めての一歩',
@@ -395,6 +403,8 @@ const I18N = {
     'main.title': 'the-Particle',
     'main.linac': 'Linac',
     'main.shift': 'Shift',
+    'main.bigCrunch': 'Big Crunch',
+    'main.bigCrunchTitle': 'Trigger a Big Crunch to gain IP (gain multiplier: x{mult})',
     'main.currentShiftMult': 'Current Linac multiplier:',
     'main.shiftCount': '(Shift count: {count})',
     'main.buyAmountLabel': 'Buy amount:',
@@ -534,8 +544,10 @@ const I18N = {
     'bi.unlockBtn': 'Break Limit (requires {cost} IP)',
     'bi.unlockedMsg1': 'LIMIT BROKEN',
     'bi.unlockedMsg2': 'Limit removed — you can now progress beyond 1.78e308',
-    'bi.notImplementedTitle': 'Not Implemented',
-    'bi.notImplementedBody': 'Break Infinity has not been implemented yet.<br>Please wait for a future update.',
+    'bi.unlockedNotifTitle': 'Limit Broken!',
+    'bi.unlockedNotifBody': 'Break Infinity is unlocked. You can now progress beyond 1.79e308.',
+    'bi.insufficientIpTitle': 'Not enough IP',
+    'bi.insufficientIpBody': 'Unlocking Break Infinity requires {cost} IP (you have {have} IP).',
 
     // --- Challenge screen ---
     'challenge.header': 'Challenge',
@@ -613,6 +625,10 @@ const I18N = {
     'infUpgrade.mkDesc': 'Exponentially boosts Mk.{n} production',
     'infUpgrade.ipDoubleTitle': 'IP Multiplier',
     'infUpgrade.ipDoubleDesc': 'Increases IP gained from Big Crunch',
+    'infUpgrade.crunchPairTitle': 'Mk.{a} & Mk.{b} Resonance',
+    'infUpgrade.crunchPairDesc': 'Increases Mk.{a} and Mk.{b} production based on your Infinity (Big Crunch) count',
+    'infUpgrade.shiftBoostTitle': 'Shift Resonance',
+    'infUpgrade.shiftBoostDesc': 'Increases the Linac multiplier gained per Shift by +0.2',
 
     // --- Achievement content ---
     'ach.firstStep.title': 'First Step',

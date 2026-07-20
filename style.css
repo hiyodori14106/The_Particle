@@ -171,6 +171,9 @@ body.particle-size-large .gen-amount { font-size: 0.95rem; }
 .linac-btn.disabled { background: #333; color: #555; cursor: not-allowed; box-shadow: none; transform:none; }
 .linac-btn.shift { background: var(--color-danger); }
 .linac-btn.shift:hover { box-shadow: 0 0 15px var(--color-danger); }
+.linac-btn.crunch { background: #ff0055; color: #fff; }
+.linac-btn.crunch:hover { box-shadow: 0 0 15px #ff0055; }
+.linac-mult.crunch-mult { color: #ff0055; }
 
 #ip-display-container {
   margin-top: 15px; padding: 5px 15px; background: rgba(213, 0, 249, 0.1);

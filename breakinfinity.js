@@ -1303,15 +1303,36 @@ function biGetIP() {
 }
 
 // --- 解放処理 ---
-// Break Infinityは現在未実装のため、実際の解放処理は行わず「未実装」を通知するだけにする。
+// 所持IPが BREAK_INFINITY_UNLOCK_IP 以上あれば、そのIPを消費してBreak Infinityを解放する。
 function tryUnlockBreakInfinity() {
-  if (typeof AudioSystem !== 'undefined') AudioSystem.playSE('error');
-  if (typeof showModal === 'function') {
-    showModal({
-      title: t('bi.notImplementedTitle'),
-      body: t('bi.notImplementedBody'),
-      buttons: [ { label: t('common.ok'), primary: true, onClick: closeModal } ]
-    });
+  ensureBreakInfinityState();
+  if (game.breakInfinity.unlocked) return;
+
+  const currentIP = biGetIP();
+  if (currentIP.lt(BREAK_INFINITY_UNLOCK_IP)) {
+    if (typeof AudioSystem !== 'undefined') AudioSystem.playSE('error');
+    if (typeof showModal === 'function') {
+      showModal({
+        title: t('bi.insufficientIpTitle'),
+        body: t('bi.insufficientIpBody', { cost: format(BREAK_INFINITY_UNLOCK_IP), have: format(currentIP) }),
+        buttons: [ { label: t('common.ok'), primary: true, onClick: closeModal } ]
+      });
+    }
+    return;
+  }
+
+  game.infinity.ip = currentIP.sub(BREAK_INFINITY_UNLOCK_IP);
+  game.breakInfinity.unlocked = true;
+
+  if (typeof playSE === 'function') playSE('unlock');
+  if (typeof saveGame === 'function') saveGame(true);
+
+  updateBreakInfinityUnlockSection();
+  updateBreakInfinityTab();
+  if (typeof updateUI === 'function' && typeof currentPPSValue !== 'undefined') updateUI(currentPPSValue);
+
+  if (typeof showNotification === 'function') {
+    showNotification(t('bi.unlockedNotifTitle'), t('bi.unlockedNotifBody'), '♾️');
   }
 }
 
@@ -1344,7 +1365,7 @@ function updateBreakInfinityUnlockSection() {
     btn.style.display = 'block';
     msg.style.display = 'none';
     btn.textContent = t('bi.unlockBtn', { cost: format(BREAK_INFINITY_UNLOCK_IP) });
-    btn.classList.remove('disabled');
+    btn.classList.toggle('disabled', currentIP.lt(BREAK_INFINITY_UNLOCK_IP));
   }
 }
 

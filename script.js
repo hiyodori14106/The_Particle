@@ -3,6 +3,9 @@
  */
 const SAVE_KEY = 'theParticle_v3_5_1'; // キーを変更して確実に新規状態で始められるようにします
 let INFINITY_LIMIT = 1.79e308;
+// Big Crunchの基準倍率単位。Break Infinity解放後もこの値ごとにIP獲得倍率が1段階増える。
+// （INFINITY_LIMITはBreak Infinity解放中に1e999へ変わるため、こちらは常に固定値として別に持つ）
+const BREAK_INFINITY_CRUNCH_BASE = 1.79e308;
 
 // --- Decimal (break_infinity.js) ヘルパー ---
 // game.particles / game.stats.totalParticles / game.stats.highestParticles は
@@ -32,6 +35,49 @@ function amtAdd(amount, add) {
     return toDecimal(amount).add(add);
   }
   return result;
+}
+
+// number/Decimal どちらでも安全に「1個あたりの量」を倍率(factor)で増やす
+// （Accelerator購入時の production *= 1.1^count に使用）。
+// 大きくなりすぎたらDecimalへ昇格する。factor自体がDecimal（購入数が極端に多い場合）でも安全。
+function amtMulFactor(value, factor) {
+  if (value instanceof Decimal || factor instanceof Decimal) {
+    return toDecimal(value).mul(factor);
+  }
+  const result = value * factor;
+  if (!isFinite(result) || result > OVERFLOW_SAFE_THRESHOLD) {
+    return toDecimal(value).mul(factor);
+  }
+  return result;
+}
+
+// 1.1^count を安全に計算する。countが非常に大きくnumberでオーバーフローする場合はDecimalを返す。
+function safePow11(count) {
+  const f = Math.pow(1.1, count);
+  if (isFinite(f)) return f;
+  return decimalPowInt(1.1, count);
+}
+
+// 複数のnumber/Decimal値を安全に掛け合わせる。
+// すべてnumberでオーバーフローしなければnumberのまま返し、
+// 桁が巨大になる場合はDecimalへ昇格して正確に計算する（表示・倍率合成の混在を避けるため）。
+function mulSafe(...values) {
+  const hasDecimal = values.some(v => v instanceof Decimal);
+  if (!hasDecimal) {
+    const result = values.reduce((a, b) => a * b, 1);
+    if (isFinite(result) && Math.abs(result) <= OVERFLOW_SAFE_THRESHOLD) return result;
+  }
+  return values.reduce((acc, v) => toDecimal(acc).mul(v), new Decimal(1));
+}
+
+// セーブから復元したAccelerator等のフィールド（amount/production）を
+// number/Decimalどちらでも正しい型に復元する。
+// JSON化されたDecimalは文字列（例: "1.23e350"）または{mantissa,exponent}になっているため、
+// 生の値をそのまま使うと精度が壊れる（Infinity化・文字列比較化）ので、必ずここを通して復元する。
+function restoreBigField(v, fallback) {
+  if (v instanceof Decimal) return v;
+  if (typeof v === 'number' && isFinite(v)) return v;
+  return decimalFromSaved(v, fallback);
 }
 
 // game.infinity.ip を常にDecimalとして取得する（1.78e308を超えて蓄積できるようにする）
@@ -80,13 +126,33 @@ function makeMkPowerUpgrade(id, targetGen) {
     descKey: 'infUpgrade.mkDesc', descVars: { n: targetGen + 1 },
     baseCost: 1,
     leveled: true,
-    effect: (game) => 1 + getUpgradeLevel(id) * 0.1,
-    nextEffect: (game) => 1 + (getUpgradeLevel(id) + 1) * 0.1,
-    formatEffect: (val) => `^${format(val)}`
+    effect: (game) => Math.pow(10, getUpgradeLevel(id)),
+    nextEffect: (game) => Math.pow(10, getUpgradeLevel(id) + 1),
+    formatEffect: (val) => `x${format(val)}`
   };
 }
 
-const INF_UPGRADE_MAX_LEVEL = 10; // レベル制Infinity強化（Mk.1〜Mk.8, IP倍加）の最大レベル
+// インフィニティ回数（Big Crunch回数）に応じて、指定した2つのAccelerator(Mk.x/Mk.y)の
+// 生産倍率を上げる強化（単発購入・レベルなし）
+const CRUNCH_PAIR_MULT_PER_COUNT = 0.05; // インフィニティ回数1回あたりの倍率増加量
+function makeCrunchPairUpgrade(id, targetGens, cost) {
+  return {
+    id, targetGens,
+    titleKey: 'infUpgrade.crunchPairTitle', titleVars: { a: targetGens[0] + 1, b: targetGens[1] + 1 },
+    descKey: 'infUpgrade.crunchPairDesc', descVars: { a: targetGens[0] + 1, b: targetGens[1] + 1 },
+    cost,
+    leveled: false,
+    effect: (game) => {
+      const crunchCount = (game.infinity && game.infinity.crunchCount) ? game.infinity.crunchCount : 0;
+      return 1 + crunchCount * CRUNCH_PAIR_MULT_PER_COUNT;
+    },
+    formatEffect: (val) => `x${format(val)}`
+  };
+}
+
+const INF_UPGRADE_MAX_LEVEL = 10; // レベル制Infinity強化（Mk.1〜Mk.8, IP倍加, シフト強化）の最大レベル
+const SHIFT_INCREMENT_BASE = 0.2; // シフト強化Lv.0時点でのシフト1回あたりの倍率増加量
+const SHIFT_INCREMENT_ID = 14;
 
 const INF_UPGRADES = [
   {
@@ -118,6 +184,20 @@ const INF_UPGRADES = [
     effect: (game) => Math.pow(2, getUpgradeLevel(9)),
     nextEffect: (game) => Math.pow(2, getUpgradeLevel(9) + 1),
     formatEffect: (val) => `${format(val)} IP`
+  },
+  makeCrunchPairUpgrade(10, [3, 4], 2), // Mk.4 & Mk.5
+  makeCrunchPairUpgrade(11, [2, 5], 3), // Mk.3 & Mk.6
+  makeCrunchPairUpgrade(12, [1, 6], 5), // Mk.2 & Mk.7
+  makeCrunchPairUpgrade(13, [0, 7], 8), // Mk.1 & Mk.8
+  {
+    id: SHIFT_INCREMENT_ID,
+    titleKey: 'infUpgrade.shiftBoostTitle',
+    descKey: 'infUpgrade.shiftBoostDesc',
+    baseCost: 3,
+    leveled: true,
+    effect: (game) => SHIFT_INCREMENT_BASE + getUpgradeLevel(SHIFT_INCREMENT_ID) * 0.2,
+    nextEffect: (game) => SHIFT_INCREMENT_BASE + (getUpgradeLevel(SHIFT_INCREMENT_ID) + 1) * 0.2,
+    formatEffect: (val) => `+${format(val)}`
   }
 ];
 
@@ -667,9 +747,18 @@ function calculateAffordablePurchase(gen, maxCount) {
   return { count, cost: totalCost };
 }
 
+// シフト強化(Infinityアップグレード)によって上昇する、シフト1回あたりの倍率増加量
+function getShiftIncrement() {
+  try {
+    const up = INF_UPGRADES.find(u => u.id === SHIFT_INCREMENT_ID);
+    if (up) return up.effect(game);
+  } catch (e) {}
+  return SHIFT_INCREMENT_BASE;
+}
+
 function getLinacBaseMult() {
   const s = game.shifts || 0;
-  return 1.2 + (s * 0.2);
+  return 1.2 + (s * getShiftIncrement());
 }
 
 function hasUpgrade(id) {
@@ -693,7 +782,15 @@ function getUpgradeCost(up) {
 function getLinacMultValue() {
   const base = getLinacBaseMult();
   const l = game.linacs || 0;
-  return Math.pow(base, l);
+  if (l <= 0) return 1;
+  // Math.pow(base, l) はライナック回数(l)が多くなるとnumberの範囲を超えてInfinityになる。
+  // その手前ならnumberで高速に、超える規模ならDecimalで正確に計算する。
+  const approxExponent = l * Math.log10(base);
+  if (approxExponent < 300) {
+    const v = Math.pow(base, l);
+    if (isFinite(v)) return v;
+  }
+  return decimalPowInt(base, l);
 }
 
 function getGlobalInfinityMultValue() {
@@ -707,11 +804,20 @@ function getGlobalInfinityMultValue() {
 function getPerGenInfMult(genIndex) {
   const upgradeId = genIndex + 1;
   const level = getUpgradeLevel(upgradeId);
-  if (level <= 0) return 1;
-  const gen = game.generators[genIndex];
-  const prod = (gen && gen.production > 0) ? gen.production : 1;
-  const exponent = 1 + level * 0.1;
-  return Math.pow(prod, exponent - 1);
+  let mult = 1;
+  if (level > 0) {
+    // Lv.1で×10, Lv.2で×100, Lv.3で×1000 ... (10^level の掛け算)
+    const powVal = Math.pow(10, level);
+    // レベルが非常に高くnumberがオーバーフローする場合のみDecimalで計算し直す
+    mult = isFinite(powVal) ? mult * powVal : mulSafe(mult, decimalPowInt(10, level));
+  }
+  // インフィニティ回数に応じたペア強化（Mk.4&5 / Mk.3&6 / Mk.2&7 / Mk.1&8）
+  INF_UPGRADES.forEach(up => {
+    if (up.targetGens && up.targetGens.includes(genIndex) && hasUpgrade(up.id)) {
+      try { mult = mulSafe(mult, up.effect(game)); } catch (e) {}
+    }
+  });
+  return mult;
 }
 
 function getChallengeMultiplier() {
@@ -735,7 +841,7 @@ function getChallengeRewardMultiplier() {
 }
 
 function getGlobalMultiplier() {
-  return getLinacMultValue() * getGlobalInfinityMultValue() * getChallengeMultiplier() * getChallengeRewardMultiplier();
+  return mulSafe(getLinacMultValue(), getGlobalInfinityMultValue(), getChallengeMultiplier(), getChallengeRewardMultiplier());
 }
 
 function getLinacReq() {
@@ -761,7 +867,36 @@ function getInfinityProgressRatio() {
   return Math.max(0, Math.min(1, logP / logCap));
 }
 
-// --- ゲームループ ---
+// Decimalを安全にfloorする。
+// 指数が大きい(15以上)値はtoNumber()がInfinity化して壊れるため、その場合は
+// 「この桁数ではもう端数に意味がない＝実質整数」とみなしてそのまま返す。
+function decimalFloorSafe(d) {
+  d = toDecimal(d);
+  if (d.exponent < 15) return new Decimal(Math.floor(d.toNumber()));
+  return d;
+}
+
+// Break Infinity解放後、粒子数が BREAK_INFINITY_CRUNCH_BASE(1.79e308) の何個分あるかを
+// 切り捨てで求める（例: 1.79e308の1.5個分なら1）。Big Crunch1回あたりのIP獲得倍率として使う。
+// まだ基準値に到達していなければ0を返す。
+function getBigCrunchMultiplier() {
+  const p = toDecimal(game.particles);
+  if (p.lt(BREAK_INFINITY_CRUNCH_BASE)) return new Decimal(0);
+  const ratio = p.div(BREAK_INFINITY_CRUNCH_BASE);
+  const floored = decimalFloorSafe(ratio);
+  return floored.lt(1) ? new Decimal(1) : floored;
+}
+
+// Break Infinity解放後、プレイヤーが手動でBig Crunchを実行するためのエントリポイント
+// （通常時は上限到達で自動発生するが、Break Infinity解放後は自動発生しないため、
+// このボタン経由でのみBig Crunchできる）。
+function doManualBigCrunch() {
+  if (!(typeof isBreakInfinityActive === 'function' && isBreakInfinityActive())) return;
+  if (toDecimal(game.particles).lt(BREAK_INFINITY_CRUNCH_BASE)) return;
+  triggerBigCrunch();
+}
+
+
 // ゲームの1ティック分の計算のみを行う（DOM更新は含まない）。
 // 通常のgameLoop・オフライン進行・Time Warpのすべてがこの関数を共有することで
 // 計算コードの重複を避ける。
@@ -792,7 +927,10 @@ function simulateTick(dt) {
     if (!(gen.amount instanceof Decimal) && typeof gen.amount === 'number' && gen.amount > OVERFLOW_SAFE_THRESHOLD) {
       gen.amount = new Decimal(gen.amount);
     }
-    const amountIsDecimal = gen.amount instanceof Decimal;
+    // amount以外(production/倍率)が巨大化してDecimal化している場合も含めて判定する
+    // （そうしないと、rawな * 演算子でDecimalが文字列経由の不正確なnumberへ変換されてしまう）
+    const amountIsDecimal = (gen.amount instanceof Decimal) || (gen.production instanceof Decimal) ||
+      (globalMult instanceof Decimal) || (genInfMult instanceof Decimal);
 
     if (i === 0) {
       let produced;
@@ -855,7 +993,8 @@ function simulateTick(dt) {
   const g0 = game.generators[0];
   const g0Inf = getPerGenInfMult(0);
   let currentPPS;
-  if (g0.amount instanceof Decimal) {
+  if ((g0.amount instanceof Decimal) || (g0.production instanceof Decimal) ||
+      (globalMult instanceof Decimal) || (g0Inf instanceof Decimal)) {
     currentPPS = toDecimal(g0.amount).mul(g0.production).mul(globalMult).mul(g0Inf).toNumber();
   } else {
     currentPPS = g0.amount * g0.production * globalMult * g0Inf;
@@ -950,7 +1089,7 @@ function runAutobuyers() {
         game.particles = toDecimal(game.particles).sub(cost);
         gen.amount = amtAdd(gen.amount, count);
         gen.bought += count;
-        gen.production *= Math.pow(1.1, count);
+        gen.production = amtMulFactor(gen.production, safePow11(count));
         if (!game.stats.totalMkPurchased) game.stats.totalMkPurchased = [0,0,0,0,0,0,0,0];
         game.stats.totalMkPurchased[index] = (game.stats.totalMkPurchased[index] || 0) + count;
       }
@@ -1016,7 +1155,7 @@ function buyGenerator(index) {
   game.particles = toDecimal(game.particles).sub(cost);
   gen.amount = amtAdd(gen.amount, count);
   gen.bought += count;
-  gen.production *= Math.pow(1.1, count);
+  gen.production = amtMulFactor(gen.production, safePow11(count));
   if (!game.stats.totalMkPurchased) game.stats.totalMkPurchased = [0,0,0,0,0,0,0,0];
   game.stats.totalMkPurchased[index] = (game.stats.totalMkPurchased[index] || 0) + count;
 
@@ -1038,7 +1177,7 @@ function buyMaxGenerator(index) {
   game.particles = toDecimal(game.particles).sub(cost);
   gen.amount = amtAdd(gen.amount, count);
   gen.bought += count;
-  gen.production *= Math.pow(1.1, count);
+  gen.production = amtMulFactor(gen.production, safePow11(count));
   if (!game.stats.totalMkPurchased) game.stats.totalMkPurchased = [0,0,0,0,0,0,0,0];
   game.stats.totalMkPurchased[index] = (game.stats.totalMkPurchased[index] || 0) + count;
 
@@ -1094,7 +1233,13 @@ function executeLinac() {
   }
   game.stats.lastLinacCycleStart = Date.now();
 
-  game.particles = new Decimal(10);
+  // チャレンジ中は、そのチャレンジ専用の初期粒子数（例: highCostは20）から再開する
+  let startParticles = 10;
+  if (game.challenge && game.challenge.active) {
+    const activeChallenge = CHALLENGES.find(ch => ch.id === game.challenge.active);
+    if (activeChallenge) startParticles = activeChallenge.startParticles || 10;
+  }
+  game.particles = new Decimal(startParticles);
   game.generators.forEach(gen => {
     gen.amount = 0;
     gen.bought = 0;
@@ -1115,7 +1260,7 @@ function doLinacShift() {
   const shiftReq = getShiftReq();
   if ((game.linacs || 0) < shiftReq) return;
   const currentBase = getLinacBaseMult();
-  const nextBase = currentBase + 0.2;
+  const nextBase = currentBase + getShiftIncrement();
 
   if (!game.settings.skipShiftConf) {
     showModal({
@@ -1283,11 +1428,33 @@ function updateUI(pps) {
       if (btnShift) {
         if (game.linacs >= shiftReq) {
           btnShift.style.display = 'inline-block';
-          const nextBase = baseMult + 0.2;
+          const nextBase = baseMult + getShiftIncrement();
           btnShift.textContent = t('main.shift');
           btnShift.title = t('notif.shiftNextTitle', { val: format(nextBase) });
         } else {
           btnShift.style.display = 'none';
+        }
+      }
+
+      // ビッグクランチボタン（Break Infinity解放後、粒子数が1.79e308を超えたら表示）
+      // 通常時は上限到達で自動的にBig Crunchするため、このボタンはBreak Infinity解放後にのみ現れる。
+      const btnBigCrunch = document.getElementById('btn-bigcrunch');
+      const bigCrunchMultEl = document.getElementById('bigcrunch-mult-inline');
+      const breakActiveNow = (typeof isBreakInfinityActive === 'function' && isBreakInfinityActive());
+      const overCrunchCap = breakActiveNow && toDecimal(game.particles).gte(BREAK_INFINITY_CRUNCH_BASE);
+      if (btnBigCrunch) {
+        if (overCrunchCap) {
+          btnBigCrunch.style.display = 'inline-block';
+          btnBigCrunch.textContent = t('main.bigCrunch');
+          const mult = getBigCrunchMultiplier();
+          btnBigCrunch.title = t('main.bigCrunchTitle', { mult: format(mult.lt(1) ? new Decimal(1) : mult) });
+          if (bigCrunchMultEl) {
+            bigCrunchMultEl.style.display = 'inline-block';
+            bigCrunchMultEl.textContent = `x${format(mult.lt(1) ? new Decimal(1) : mult)}`;
+          }
+        } else {
+          btnBigCrunch.style.display = 'none';
+          if (bigCrunchMultEl) bigCrunchMultEl.style.display = 'none';
         }
       }
     } else {
@@ -1328,15 +1495,15 @@ function updateUI(pps) {
     if(amtEl) amtEl.textContent = t('common.owned', { val: format(gen.amount) });
 
     const perGenMult = getPerGenInfMult(index);
-    const totalInfMult = globalInfMult * perGenMult;
-    const totalGenMult = gen.production * currentLinacMult * totalInfMult * challengeMult;
+    const totalInfMult = mulSafe(globalInfMult, perGenMult);
+    const totalGenMult = mulSafe(gen.production, currentLinacMult, totalInfMult, challengeMult);
     
     const multEl = document.getElementById(`mult-${index}`);
     if(multEl) multEl.textContent = `x${format(totalGenMult)}`;
 
     const linacEl = document.getElementById(`mult-linac-${index}`);
     if (linacEl) {
-        if (currentLinacMult > 1) {
+        if (amtGt(currentLinacMult, 1)) {
             linacEl.style.display = 'block';
             linacEl.textContent = t('badge.linacMult', { val: format(currentLinacMult) });
         } else {
@@ -1570,7 +1737,12 @@ function triggerBigCrunch() {
   
   if (!game.infinity) game.infinity = { ip: new Decimal(0), crunchCount:0, bestTime:null, upgrades:[], broken:false };
   
-  let gainedIP = Math.pow(2, getUpgradeLevel(9));
+  // 通常のIP獲得量に、Big Crunch倍率（1.79e308を何個分保持していたか・切り捨て）を掛ける。
+  // Break Infinity未解放時や、ちょうど上限到達時点でのCrunchは倍率1のため、既存の挙動と変わらない。
+  const baseGainedIP = Math.pow(2, getUpgradeLevel(9));
+  let crunchMult = getBigCrunchMultiplier();
+  if (crunchMult.lt(1)) crunchMult = new Decimal(1);
+  let gainedIP = mulSafe(baseGainedIP, crunchMult);
   game.infinity.ip = getIP().add(gainedIP);
   game.infinity.crunchCount = (game.infinity.crunchCount || 0) + 1;
   if (game.infinity.bestTime === null || currentTime < game.infinity.bestTime) {
@@ -1759,6 +1931,11 @@ function loadGame() {
           const freshGen = fresh.generators[i] || g;
           return { 
             ...freshGen, ...g,
+            // amount/productionはDecimalとして保存されている場合、JSON化で文字列や
+            // {mantissa,exponent}になっている。生のまま使うと以降の演算がInfinity化・
+            // 文字列比較化して壊れるため、必ずDecimal/number正しい型へ復元する。
+            amount: restoreBigField(g.amount, 0),
+            production: restoreBigField(g.production, 1),
             autoUnlocked: g.autoUnlocked !== undefined ? g.autoUnlocked : freshGen.autoUnlocked,
             autoActive: g.autoActive !== undefined ? g.autoActive : freshGen.autoActive
           };
