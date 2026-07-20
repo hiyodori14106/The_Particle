@@ -102,6 +102,40 @@ function decimalFromSaved(v, fallback = 0) {
   return new Decimal(fallback);
 }
 
+// =========================================================
+// --- 簡易チート対策: game.particles への直接代入をブロックする ---
+// 「game.particles = 100」のようにコンソールから直に書き換えられる問題への対策。
+// ゲーム内部の正規の更新経路（setParticles）以外からの代入はすべて無視する。
+// ※ ブラウザのコンソールはページと同じ権限を持つため、これは完全な防止策では
+//   なく「安易な書き換えを塞ぐ」ための簡易的な対策である。数値を変えたい場合は
+//   秘密コマンド（Kaihatusha関数）で開くチートタブから正規に変更できるようにする。
+// =========================================================
+let __particlesWriteGate = false;
+
+// game.particles を保護する（gameオブジェクトが新規作成・再構築されるたびに呼ぶ必要がある）
+function protectParticlesField(g) {
+  let backing = g.particles;
+  Object.defineProperty(g, 'particles', {
+    configurable: true,
+    enumerable: true,
+    get() { return backing; },
+    set(v) {
+      if (!__particlesWriteGate) {
+        console.warn('%c不正な変更がブロックされました。', 'color:#ff3b3b; font-weight:bold;');
+        return;
+      }
+      backing = v;
+    }
+  });
+}
+
+// ゲーム内部から正規にparticlesを更新するための唯一の経路
+function setParticles(value) {
+  __particlesWriteGate = true;
+  try { game.particles = value; }
+  finally { __particlesWriteGate = false; }
+}
+
 // --- 単位定義 ---
 const UNITS_ENG = [
  '', 'k', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc', 
@@ -569,6 +603,7 @@ function getInitialState() {
 }
 
 let game = getInitialState();
+protectParticlesField(game);
 let isCrunching = false;
 let currentPPSValue = 0; // 統計画面「現在のPPS」表示用キャッシュ
 let offlineSimulating = false; // オフライン進行の一括シミュレーション中はtrue（通知・重いDOM更新を抑制する）
@@ -876,15 +911,16 @@ function decimalFloorSafe(d) {
   return d;
 }
 
-// Break Infinity解放後、粒子数が BREAK_INFINITY_CRUNCH_BASE(1.79e308) の何個分あるかを
-// 切り捨てで求める（例: 1.79e308の1.5個分なら1）。Big Crunch1回あたりのIP獲得倍率として使う。
-// まだ基準値に到達していなければ0を返す。
+// Break Infinity解放後、粒子数の指数（桁数）に308が何個分含まれているかを
+// 切り捨てで求める（例: 1e616 なら 616÷308=2 なので2倍）。Big Crunch1回あたりの
+// IP獲得倍率として使う。まだ基準値(1.79e308)に到達していなければ0を返す。
 function getBigCrunchMultiplier() {
   const p = toDecimal(game.particles);
   if (p.lt(BREAK_INFINITY_CRUNCH_BASE)) return new Decimal(0);
-  const ratio = p.div(BREAK_INFINITY_CRUNCH_BASE);
-  const floored = decimalFloorSafe(ratio);
-  return floored.lt(1) ? new Decimal(1) : floored;
+  const exponent = p.log10();
+  if (!isFinite(exponent)) return new Decimal(1);
+  const count = Math.floor(exponent / 308);
+  return new Decimal(count < 1 ? 1 : count);
 }
 
 // Break Infinity解放後、プレイヤーが手動でBig Crunchを実行するためのエントリポイント
@@ -904,8 +940,8 @@ function simulateTick(dt) {
   if (!game.stats.totalTimePlayed) game.stats.totalTimePlayed = 0;
   game.stats.totalTimePlayed += dt;
 
-  game.particles = toDecimal(game.particles);
-  if (Number.isNaN(game.particles.mantissa) || Number.isNaN(game.particles.exponent)) game.particles = new Decimal(10);
+  setParticles(toDecimal(game.particles));
+  if (Number.isNaN(game.particles.mantissa) || Number.isNaN(game.particles.exponent)) setParticles(new Decimal(10));
 
   const breakActive = (typeof isBreakInfinityActive === 'function' && isBreakInfinityActive());
   INFINITY_LIMIT = breakActive ? 1e999 : 1.79e308;
@@ -944,16 +980,23 @@ function simulateTick(dt) {
           // 通常のnumber演算がオーバーフローした場合（amount自体は閾値未満だが、
           // 掛け算の結果だけがオーバーフローしたレアケース）。
           // Break Infinity解放後はDecimalとして計算し直し、未解放時は頭打ちにする。
+          // 頭打ちの値にdtを掛けてしまうと、dtが大きい（オフライン進行・スキップ等）場合に
+          // 上限(1.79e308)を大きく超えてしまうため、dtを掛けずに上限そのものを使う。
           produced = breakActive
             ? toDecimal(gen.amount).mul(gen.production).mul(globalMult).mul(genInfMult).mul(dt)
-            : new Decimal(1.79e308 * dt);
+            : new Decimal(1.79e308);
         } else {
           produced = new Decimal(pps * dt);
         }
       }
       if (!Number.isNaN(produced.mantissa)) {
-        game.particles = game.particles.add(produced);
+        setParticles(game.particles.add(produced));
         game.stats.totalParticles = toDecimal(game.stats.totalParticles).add(produced);
+        // breakInfinity未解放時は、どんな計算経路であっても上限(1.79e308)を超えさせない
+        // （超えた状態が次のtickまでの間、一瞬でも表示に出てしまうのを防ぐ）
+        if (!breakActive && game.particles.gt(INFINITY_LIMIT)) {
+          setParticles(new Decimal(INFINITY_LIMIT));
+        }
       }
     } else {
       const target = game.generators[i - 1];
@@ -1086,7 +1129,7 @@ function runAutobuyers() {
       // （固定回数のループだと、大きくジャンプしたdtに対して購入量が頭打ちになってしまう）
       const { count, cost } = calculateAffordablePurchase(gen, BUY_MAX_SAFETY_CAP);
       if (count > 0) {
-        game.particles = toDecimal(game.particles).sub(cost);
+        setParticles(toDecimal(game.particles).sub(cost));
         gen.amount = amtAdd(gen.amount, count);
         gen.bought += count;
         gen.production = amtMulFactor(gen.production, safePow11(count));
@@ -1152,7 +1195,7 @@ function buyGenerator(index) {
   const { count, cost } = calculateAffordablePurchase(gen, cap);
   if (count <= 0) return;
 
-  game.particles = toDecimal(game.particles).sub(cost);
+  setParticles(toDecimal(game.particles).sub(cost));
   gen.amount = amtAdd(gen.amount, count);
   gen.bought += count;
   gen.production = amtMulFactor(gen.production, safePow11(count));
@@ -1174,7 +1217,7 @@ function buyMaxGenerator(index) {
   const { count, cost } = calculateAffordablePurchase(gen, BUY_MAX_SAFETY_CAP);
   if (count <= 0) return;
 
-  game.particles = toDecimal(game.particles).sub(cost);
+  setParticles(toDecimal(game.particles).sub(cost));
   gen.amount = amtAdd(gen.amount, count);
   gen.bought += count;
   gen.production = amtMulFactor(gen.production, safePow11(count));
@@ -1239,7 +1282,7 @@ function executeLinac() {
     const activeChallenge = CHALLENGES.find(ch => ch.id === game.challenge.active);
     if (activeChallenge) startParticles = activeChallenge.startParticles || 10;
   }
-  game.particles = new Decimal(startParticles);
+  setParticles(new Decimal(startParticles));
   game.generators.forEach(gen => {
     gen.amount = 0;
     gen.bought = 0;
@@ -1280,7 +1323,7 @@ function executeLinacShift(nextBase) {
   game.shifts = (game.shifts || 0) + 1;
   game.linacs = 0;
   game.stats.lastLinacCycleStart = Date.now();
-  game.particles = new Decimal(10);
+  setParticles(new Decimal(20));
   game.generators.forEach(gen => {
     gen.amount = 0;
     gen.bought = 0;
@@ -1802,7 +1845,7 @@ function performInfinityReset() {
     autoActive: g.autoActive
   }));
 
-  game.particles = new Decimal(10);
+  setParticles(new Decimal(10));
   game.linacs = 0;
   game.shifts = 0;
   game.stats.startTime = Date.now();
@@ -1890,6 +1933,9 @@ function loadGame() {
       // 旧セーブ（数値）・新セーブ（{mantissa,exponent}）どちらからも復元できるようにする。
       game.particles = decimalFromSaved(parsed.particles, 10);
       game.stats.totalParticles = decimalFromSaved(parsed.stats && parsed.stats.totalParticles, 10);
+      // gameはスプレッドで毎回新規オブジェクトとして作られるため、直接代入からの
+      // 保護（get/setによるゲート制御）もロード完了後に必ずかけ直す
+      protectParticlesField(game);
 
       // Infinity Points（IP）もDecimalで保持し、1.78e308を超えて蓄積できるようにする
       game.infinity.ip = decimalFromSaved(parsed.infinity && parsed.infinity.ip, 0);
@@ -2472,7 +2518,7 @@ function executeStartChallenge(id) {
     autoActive: g.autoActive
   }));
 
-  game.particles = new Decimal(c.startParticles || 10);
+  setParticles(new Decimal(c.startParticles || 10));
   game.linacs = 0;
   game.shifts = 0;
   game.stats.startTime = Date.now();
@@ -2522,7 +2568,7 @@ function executeExitChallenge(id) {
     autoActive: g.autoActive
   }));
 
-  game.particles = new Decimal(10);
+  setParticles(new Decimal(10));
   game.linacs = 0;
   game.shifts = 0;
   game.stats.startTime = Date.now();
@@ -2564,6 +2610,7 @@ function switchTab(name, btn) {
   }
 
   if (name === 'shop' && typeof updateShopTab === 'function') updateShopTab();
+  if (name === 'cheat' && typeof updateCheatTab === 'function') updateCheatTab();
 }
 
 // Infinity画面内のサブタブ切り替え（Main / Break Infinity）
@@ -2579,6 +2626,144 @@ function switchInfinitySubTab(name, btn) {
       if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(name)) b.classList.add('active');
     });
   }
+}
+
+// =========================================================
+// --- チート機能 ---
+// コンソールから Kaihatusha(2020302) を実行すると、正規の数値変更用
+// チートタブ（CHEAT）が解放される。以後はこの画面から粒子数・IP・AP・
+// ライナック/シフト回数・Time Flux所持量・各Acceleratorの所持数を
+// 直接編集できる。
+// particlesはコンソールからの直接代入（例: game.particles = 100）を
+// setParticles経由のゲートでブロックしているため、粒子数を変更したい
+// 場合もこの画面を使う。
+// =========================================================
+function unlockCheatTab() {
+  const btn = document.getElementById('tab-btn-cheat');
+  if (btn) btn.style.display = 'inline-block';
+  console.log('%cチート機能を解放しました。「CHEAT」タブから数値を変更できます。', 'color:#ff0055; font-weight:bold;');
+  if (typeof switchTab === 'function') switchTab('cheat');
+}
+
+window.Kaihatusha = function (code) {
+  if (String(code) === '2020302') {
+    unlockCheatTab();
+    return 'チート機能を解放しました。';
+  }
+  console.log('%cコードが違います。', 'color:#888;');
+  return undefined;
+};
+
+// Accelerator(Mk.1〜8)ごとの入力欄を初回だけ生成する
+function buildCheatGenList() {
+  const container = document.getElementById('cheat-gen-list');
+  if (!container || container.dataset.initialized) return;
+  container.dataset.initialized = '1';
+  game.generators.forEach((g, i) => {
+    const row = document.createElement('div');
+    row.className = 'cheat-gen-row';
+    row.innerHTML = `<label>Mk.${i + 1}</label><input type="text" class="cheat-input" id="cheat-gen-${i}" placeholder="例: 100">`;
+    container.appendChild(row);
+  });
+}
+
+// チートタブを開いたとき、現在の値を各入力欄に反映する
+function updateCheatTab() {
+  buildCheatGenList();
+
+  const pEl = document.getElementById('cheat-particles');
+  if (pEl) pEl.value = toDecimal(game.particles).toString();
+
+  const ipEl = document.getElementById('cheat-ip');
+  if (ipEl) ipEl.value = toDecimal(getIP()).toString();
+
+  const apEl = document.getElementById('cheat-ap');
+  if (apEl) apEl.value = (typeof game.achievementPoints === 'number') ? game.achievementPoints : 0;
+
+  const linacsEl = document.getElementById('cheat-linacs');
+  if (linacsEl) linacsEl.value = game.linacs || 0;
+
+  const shiftsEl = document.getElementById('cheat-shifts');
+  if (shiftsEl) shiftsEl.value = game.shifts || 0;
+
+  const tfEl = document.getElementById('cheat-tf-time');
+  if (tfEl) tfEl.value = (game.timeFlux && typeof game.timeFlux.time === 'number') ? Math.floor(game.timeFlux.time) : 0;
+
+  game.generators.forEach((g, i) => {
+    const el = document.getElementById(`cheat-gen-${i}`);
+    if (el) el.value = toDecimal(g.amount).toString();
+  });
+}
+
+// 「適用する」ボタン: 各入力欄の値を読み取り、ゲーム状態に書き戻す
+function applyCheatValues() {
+  const statusEl = document.getElementById('cheat-status');
+
+  // 文字列("1e50"や"1234"等)をDecimalへ安全に変換するローカルヘルパー
+  function parseInput(id, fallback) {
+    const el = document.getElementById(id);
+    if (!el || el.value.trim() === '') return null; // 未入力は変更しない
+    try {
+      const d = Decimal.fromString(el.value.trim());
+      if (Number.isNaN(d.mantissa) || Number.isNaN(d.exponent)) return null;
+      return d;
+    } catch (e) { return null; }
+  }
+
+  const newParticles = parseInput('cheat-particles');
+  if (newParticles) setParticles(newParticles);
+
+  const newIP = parseInput('cheat-ip');
+  if (newIP) {
+    if (!game.infinity) game.infinity = { ip: new Decimal(0), crunchCount: 0, bestTime: null, upgrades: [], levels: {} };
+    game.infinity.ip = newIP;
+  }
+
+  const apEl = document.getElementById('cheat-ap');
+  if (apEl && apEl.value.trim() !== '') {
+    const ap = Number(apEl.value);
+    if (!Number.isNaN(ap) && isFinite(ap)) game.achievementPoints = Math.max(0, Math.floor(ap));
+  }
+
+  const linacsEl = document.getElementById('cheat-linacs');
+  if (linacsEl && linacsEl.value.trim() !== '') {
+    const l = Number(linacsEl.value);
+    if (!Number.isNaN(l) && isFinite(l)) game.linacs = Math.max(0, Math.floor(l));
+  }
+
+  const shiftsEl = document.getElementById('cheat-shifts');
+  if (shiftsEl && shiftsEl.value.trim() !== '') {
+    const s = Number(shiftsEl.value);
+    if (!Number.isNaN(s) && isFinite(s)) game.shifts = Math.max(0, Math.floor(s));
+  }
+
+  const tfEl = document.getElementById('cheat-tf-time');
+  if (tfEl && tfEl.value.trim() !== '') {
+    const tf = Number(tfEl.value);
+    if (!Number.isNaN(tf) && isFinite(tf)) {
+      if (typeof ensureTimeFluxState === 'function') ensureTimeFluxState();
+      game.timeFlux.time = Math.max(0, tf);
+    }
+  }
+
+  game.generators.forEach((g, i) => {
+    const d = parseInput(`cheat-gen-${i}`);
+    if (d) g.amount = d;
+  });
+
+  saveGame();
+  updateUI(currentPPSValue || 0);
+  updateStats();
+  updateAchievementsTab();
+  updateInfinityTab();
+  updateTimeFluxTab();
+  updateCheatTab();
+
+  if (statusEl) {
+    statusEl.textContent = `適用しました (${new Date().toLocaleTimeString()})`;
+    statusEl.style.color = '#00ff9d';
+  }
+  if (typeof playSE === 'function') playSE('buy');
 }
 
 // 設定画面（演出スキップ）＆ Automation画面（自動化）の UI生成

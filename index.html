@@ -96,6 +96,8 @@
         <button class="tab-btn" id="tab-btn-challenge" data-i18n="nav.challenge" onclick="switchTab('challenge', this)" style="display:none;">チャレンジ</button>
         <button class="tab-btn" id="tab-btn-automation" data-i18n="nav.automation" onclick="switchTab('automation', this)" style="display:none;">自動化</button>
         <button class="tab-btn" data-i18n="nav.settings" onclick="switchTab('settings', this)">設定</button>
+        <!-- チートタブ（コンソールの秘密コマンドで解放されるまで非表示） -->
+        <button class="tab-btn" id="tab-btn-cheat" onclick="switchTab('cheat', this)" style="display:none; color:#ff0055; border-color:#ff0055;">CHEAT</button>
       </div>
     </nav>
 
@@ -336,6 +338,43 @@
           <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;" data-i18n="settings.dangerDesc">全ての進捗を完全に削除します。</p>
           <button class="ui-btn danger" data-i18n="settings.hardResetBtn" onclick="hardReset()">完全初期化</button>
         </div>
+      </section>
+
+      <!-- チートタブ（コンソールの秘密コマンドで解放される。開発・検証用） -->
+      <section id="tab-cheat" class="sidebar-content screen-page">
+        <h3 style="color:#ff0055;">⚠ CHEAT PANEL</h3>
+        <p style="font-size:0.8rem; color:#aaa; margin-bottom:15px;">数値を直接書き換えます。セーブデータが壊れる可能性があるため、事前にセーブデータの書き出しを推奨します。</p>
+
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;">粒子数 (particles)</label>
+          <input type="text" id="cheat-particles" class="cheat-input" placeholder="例: 1e50">
+        </div>
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;">インフィニティポイント (IP)</label>
+          <input type="text" id="cheat-ip" class="cheat-input" placeholder="例: 1e10">
+        </div>
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;">実績ポイント (AP)</label>
+          <input type="text" id="cheat-ap" class="cheat-input" placeholder="例: 100">
+        </div>
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;">ライナック回数</label>
+          <input type="text" id="cheat-linacs" class="cheat-input" placeholder="例: 5">
+        </div>
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;">シフト回数</label>
+          <input type="text" id="cheat-shifts" class="cheat-input" placeholder="例: 2">
+        </div>
+        <div class="select-wrapper" style="margin-top:10px;">
+          <label style="display:block; font-size:0.8rem; color:#888; margin-bottom:5px;">Time Flux 所持量（秒）</label>
+          <input type="text" id="cheat-tf-time" class="cheat-input" placeholder="例: 3600">
+        </div>
+
+        <h4 style="margin-top:20px; color:#ff0055;">Accelerator 所持数 (Mk.1〜Mk.8)</h4>
+        <div id="cheat-gen-list" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"><!-- JSで生成されます --></div>
+
+        <button class="ui-btn danger" style="margin-top:20px;" onclick="applyCheatValues()">適用する</button>
+        <div class="status-text" id="cheat-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
       </section>
 
       <!-- Infinity画面 -->

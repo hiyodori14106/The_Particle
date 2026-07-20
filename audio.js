@@ -1,21 +1,23 @@
 // =========================================================
 // audio.js
-// SE（効果音）とBGM（背景音楽）をWeb Audio APIでその場で合成する。
-// 外部の音声ファイルを使わないため、追加アセット無しで動作する。
+// SE（効果音）はWeb Audio APIでその場で合成する。
+// BGM（背景音楽）は同階層に置いた BGM.mp3 を <audio> でループ再生する。
 //
 // 依存関係:
 //   - グローバル変数 `game`（script.js側）の game.settings を参照する。
 //   - このファイルは script.js より先に読み込むこと。
+//   - index.html と同じディレクトリに BGM.mp3 を配置すること。
 // =========================================================
+
+const BGM_SRC = 'BGM.mp3';
+const BGM_VOLUME = 0.4; // BGMの最大音量（0〜1）
 
 const AudioSystem = (() => {
   let ctx = null;
   let masterGain = null;
   let sfxGain = null;
-  let bgmGain = null;
+  let bgmAudio = null;
   let bgmPlaying = false;
-  let bgmTimer = null;
-  let bgmStep = 0;
 
   function getSettings() {
     if (typeof game !== 'undefined' && game && game.settings) return game.settings;
@@ -32,18 +34,15 @@ const AudioSystem = (() => {
       masterGain.connect(ctx.destination);
       sfxGain = ctx.createGain();
       sfxGain.connect(masterGain);
-      bgmGain = ctx.createGain();
-      bgmGain.connect(masterGain);
       applyVolumes();
     } catch (e) { ctx = null; }
     return ctx;
   }
 
   function applyVolumes() {
-    if (!ctx) return;
     const s = getSettings();
-    sfxGain.gain.value = (s.sfxEnabled === false) ? 0 : 0.35;
-    bgmGain.gain.value = (s.bgmEnabled === false) ? 0 : 0.18;
+    if (ctx) sfxGain.gain.value = (s.sfxEnabled === false) ? 0 : 0.35;
+    if (bgmAudio) bgmAudio.volume = (s.bgmEnabled === false) ? 0 : BGM_VOLUME;
   }
 
   // 単純なビープ音（正弦波等）を1つ鳴らす
@@ -89,44 +88,28 @@ const AudioSystem = (() => {
     if (fn) { try { fn(); } catch (e) {} }
   }
 
-  // BGM: 短いアンビエント風アルペジオを一定間隔で繰り返す簡易ループ
-  const BGM_NOTES = [130.81, 164.81, 196.00, 261.63, 196.00, 164.81]; // C3-E3-G3-C4-G3-E3
-
-  function bgmTick() {
-    if (!ctx || !bgmPlaying) return;
+  // BGM: BGM.mp3をループ再生する
+  function ensureBGMAudio() {
+    if (bgmAudio) return bgmAudio;
+    bgmAudio = new Audio(BGM_SRC);
+    bgmAudio.loop = true;
+    bgmAudio.preload = 'auto';
     applyVolumes();
-    const freq = BGM_NOTES[bgmStep % BGM_NOTES.length];
-    const t0 = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, t0);
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(0.2, t0 + 0.08);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.4);
-    osc.connect(g);
-    g.connect(bgmGain);
-    osc.start(t0);
-    osc.stop(t0 + 1.5);
-    bgmStep++;
-    bgmTimer = setTimeout(bgmTick, 900);
+    return bgmAudio;
   }
 
   function startBGM() {
     const s = getSettings();
     if (s.bgmEnabled === false) return;
-    const c = ensureContext();
-    if (!c) return;
-    if (c.state === 'suspended') { c.resume().catch(() => {}); }
+    const a = ensureBGMAudio();
+    applyVolumes();
     if (bgmPlaying) return;
-    bgmPlaying = true;
-    bgmStep = 0;
-    bgmTick();
+    a.play().then(() => { bgmPlaying = true; }).catch(() => { bgmPlaying = false; });
   }
 
   function stopBGM() {
     bgmPlaying = false;
-    if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
+    if (bgmAudio) bgmAudio.pause();
   }
 
   // 設定変更後に呼ぶ: ON/OFFに応じて再生/停止を切り替える
