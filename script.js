@@ -260,7 +260,7 @@ const ACHIEVEMENTS_BASE = [
     descKey: 'ach.firstShift.desc',
     icon: '🔄',
     points: 10,
-    check: (game) => (game.shifts || 0) >= 1
+    check: (game) => (game.stats.totalShifts || 0) >= 1
   },
   {
     id: 'infinity',
@@ -318,7 +318,7 @@ const ACHIEVEMENTS_BASE = [
     descKey: 'ach.doubleShift.desc',
     icon: '🔁',
     points: 10,
-    check: (game) => (game.shifts || 0) >= 2
+    check: (game) => (game.stats.totalShifts || 0) >= 2
   },
   {
     id: 'tripleShift',
@@ -326,7 +326,7 @@ const ACHIEVEMENTS_BASE = [
     descKey: 'ach.tripleShift.desc',
     icon: '♻️',
     points: 20,
-    check: (game) => (game.shifts || 0) >= 3
+    check: (game) => (game.stats.totalShifts || 0) >= 3
   },
   {
     id: 'moreShift',
@@ -334,7 +334,7 @@ const ACHIEVEMENTS_BASE = [
     descKey: 'ach.moreShift.desc',
     icon: '🌀',
     points: 10,
-    check: (game) => (game.shifts || 0) >= 5
+    check: (game) => (game.stats.totalShifts || 0) >= 5
   },
   {
     id: 'shiftMaster',
@@ -342,7 +342,7 @@ const ACHIEVEMENTS_BASE = [
     descKey: 'ach.shiftMaster.desc',
     icon: '🏅',
     points: 50,
-    check: (game) => (game.shifts || 0) >= 10
+    check: (game) => (game.stats.totalShifts || 0) >= 10
   },
   // --- Accelerator初購入実績（Mk.2〜Mk.8） ---
   {
@@ -490,6 +490,50 @@ const CHALLENGES = [
     disableAutomation: true // チャレンジ中はオートバイヤーとMキー（最大購入）が使用不可
     // 報酬（自動ライナック）は数値倍率ではなく、game.challenge.completed.backToBasics を
     // isAutoLinacUnlocked() が参照することで機能する（getChallengeRewardMultiplier等では扱わない）
+  },
+  {
+    id: 'fixedRatio',
+    number: 4,
+    titleKey: 'ch.fixedRatio.title',
+    effectLabelKey: 'ch.fixedRatio.effectLabel',
+    rewardLabelKey: 'ch.fixedRatio.rewardLabel',
+    disableShift: true // チャレンジ中はシフトが使用不可
+    // 報酬（シフト強化のレベル上限+15）は数値倍率ではなく、getUpgradeMaxLevel() が
+    // game.challenge.completed.fixedRatio を参照することで機能する
+  },
+  {
+    id: 'multDrop',
+    number: 5,
+    titleKey: 'ch.multDrop.title',
+    effectLabelKey: 'ch.multDrop.effectLabel',
+    rewardLabelKey: 'ch.multDrop.rewardLabel',
+    linacBaseEffectMult: 0.9 // チャレンジ中のみ適用されるライナック初期倍率への倍率
+    // 報酬（ライナック初期倍率が1.2→1.8）は数値倍率ではなく、getLinacBaseMult() が
+    // game.challenge.completed.multDrop を参照することで機能する
+  },
+  {
+    id: 'buyLimit',
+    number: 6,
+    titleKey: 'ch.buyLimit.title',
+    effectLabelKey: 'ch.buyLimit.effectLabel',
+    rewardLabelKey: 'ch.buyLimit.rewardLabel',
+    buyLimitGens: [1, 6], // チャレンジ中、Mk.2(index1)・Mk.7(index6)の購入数が制限される
+    buyLimitCount: 50,
+    rewardMult: 1.2 // クリア後、永久に適用される生産倍率（PPS×1.2）
+  },
+  {
+    id: 'lowEfficiency',
+    number: 7,
+    titleKey: 'ch.lowEfficiency.title',
+    effectLabelKey: 'ch.lowEfficiency.effectLabel',
+    rewardLabelKey: 'ch.lowEfficiency.rewardLabel',
+    requiresChallenges: ['slowSpeed', 'highCost', 'backToBasics', 'fixedRatio', 'multDrop', 'buyLimit'], // チャレンジ1〜6のクリアが挑戦条件
+    // このチャレンジ自体には固有の効果を持たせず、代わりにチャレンジ1〜6
+    // （requiresChallengesの6つ）の効果をすべて同時に適用する
+    // （getEffectiveChallengeIds()参照）。
+    // highCostの効果（コスト×2）も同時に乗るため、Mk.1が買えず詰まないよう
+    // highCostと同じ初期粒子数(20)にしておく。
+    startParticles: 20
   }
 ];
 
@@ -497,6 +541,346 @@ function getDefaultChallengeState() {
   const completed = {};
   CHALLENGES.forEach(c => { completed[c.id] = false; });
   return { unlocked: false, active: null, completed };
+}
+
+// requiresChallenges が設定されているチャレンジは、それらを全てクリアするまで挑戦できない
+function isChallengeLocked(c) {
+  if (!c.requiresChallenges || !c.requiresChallenges.length) return false;
+  if (!game.challenge || !game.challenge.completed) return true;
+  return !c.requiresChallenges.every(id => game.challenge.completed[id]);
+}
+
+// 現在の挑戦中チャレンジによって効果が適用されるチャレンジIDの一覧を返す。
+// 通常は挑戦中チャレンジ自身のみだが、チャレンジ7「低効率」挑戦中は
+// その挑戦条件になっているチャレンジ1〜6（requiresChallenges）の効果を
+// すべて同時に適用する（＝6つのチャレンジを同時進行しているのと同じ状態）。
+function getEffectiveChallengeIds() {
+  if (!game.challenge || !game.challenge.active) return [];
+  const c = CHALLENGES.find(ch => ch.id === game.challenge.active);
+  if (!c) return [];
+  if (c.id === 'lowEfficiency' && Array.isArray(c.requiresChallenges)) {
+    return c.requiresChallenges;
+  }
+  return [c.id];
+}
+
+// チャレンジ7クリアで研究が解放される
+function isResearchUnlocked() {
+  return !!(game.challenge && game.challenge.completed && game.challenge.completed['lowEfficiency']);
+}
+
+// =========================================================
+// --- 研究（Research）システム ---
+// チャレンジ7「低効率」クリアで解放されるIP消費型のアップグレードツリー。
+// P-1〜P-30の30ノードで構成され、依存関係(requires)を全て満たしたノードのみ購入できる。
+// row/col はツリー表示用のグリッド位置（14列グリッド、各ノード幅2列）。
+// =========================================================
+const RESEARCH_NODES = [
+  { id: 'P1',  cost: 10,   requires: [],                 row: 1,  col: 7 },
+  { id: 'P2',  cost: 30,   requires: ['P1'],              row: 2,  col: 5 },
+  { id: 'P3',  cost: 30,   requires: ['P1'],              row: 2,  col: 9 },
+  { id: 'P4',  cost: 100,  requires: ['P2', 'P3'],        row: 3,  col: 7 },
+  { id: 'P5',  cost: 300,  requires: ['P4'],              row: 4,  col: 7 },
+  { id: 'P6',  cost: 1e3,  requires: ['P5'],              row: 5,  col: 5 },
+  { id: 'P7',  cost: 1e3,  requires: ['P5'],              row: 5,  col: 9 },
+  { id: 'P8',  cost: 5e3,  requires: ['P6'],              row: 6,  col: 3 },
+  { id: 'P9',  cost: 2e4,  requires: ['P6'],              row: 6,  col: 5 },
+  { id: 'P10', cost: 1e5,  requires: ['P7'],              row: 6,  col: 9 },
+  { id: 'P11', cost: 5e5,  requires: ['P7'],              row: 6,  col: 11 },
+  { id: 'P12', cost: 2e6,  requires: ['P8','P9','P10','P11'], row: 7, col: 7 },
+  { id: 'P13', cost: 1e7,  requires: ['P12'],             row: 8,  col: 5 },
+  { id: 'P14', cost: 5e7,  requires: ['P12'],             row: 8,  col: 9 },
+  { id: 'P15', cost: 2e8,  requires: ['P13'],             row: 9,  col: 5 },
+  { id: 'P16', cost: 1e9,  requires: ['P14'],             row: 9,  col: 9 },
+  { id: 'P17', cost: 5e9,  requires: ['P15','P16'],       row: 10, col: 7 },
+  { id: 'P18', cost: 2e10, requires: ['P17'],             row: 11, col: 5 },
+  { id: 'P19', cost: 1e11, requires: ['P17'],             row: 11, col: 9 },
+  { id: 'P20', cost: 5e11, requires: ['P18'],             row: 12, col: 5 },
+  { id: 'P21', cost: 2e12, requires: ['P19'],             row: 12, col: 9 },
+  { id: 'P22', cost: 1e13, requires: ['P20','P21'],       row: 13, col: 7 },
+  { id: 'P23', cost: 5e13, requires: ['P22'],             row: 14, col: 3 },
+  { id: 'P24', cost: 2e14, requires: ['P22'],             row: 14, col: 7 },
+  { id: 'P25', cost: 1e15, requires: ['P22'],             row: 14, col: 11 },
+  { id: 'P26', cost: 5e15, requires: ['P23','P24','P25'], row: 15, col: 7 },
+  { id: 'P27', cost: 2e16, requires: ['P26'],             row: 16, col: 7 },
+  { id: 'P28', cost: 1e17, requires: ['P27'],             row: 17, col: 5 },
+  { id: 'P29', cost: 5e17, requires: ['P27'],             row: 17, col: 9 },
+  { id: 'P30', cost: 1e18, requires: ['P28','P29'],       row: 18, col: 7 }
+];
+const RESEARCH_ROW_COUNT = 18;
+const RESEARCH_COL_COUNT = 14; // グリッド全体の列数（ノード幅は2列）
+
+function getDefaultResearchState() {
+  const completed = {};
+  RESEARCH_NODES.forEach(n => { completed[n.id] = false; });
+  return { completed };
+}
+
+function ensureResearchState() {
+  if (!game.research) game.research = getDefaultResearchState();
+  if (!game.research.completed) game.research.completed = {};
+  RESEARCH_NODES.forEach(n => {
+    if (typeof game.research.completed[n.id] !== 'boolean') game.research.completed[n.id] = false;
+  });
+}
+
+function isResearchDone(id) {
+  return !!(game.research && game.research.completed && game.research.completed[id]);
+}
+
+// 依存ノードが全てクリア済みか（未クリアの場合、購入不可）
+function isResearchNodeAvailable(node) {
+  if (!node.requires || !node.requires.length) return true;
+  return node.requires.every(reqId => isResearchDone(reqId));
+}
+
+function getResearchNodeCost(node) {
+  return node.cost;
+}
+
+// 研究ノードを購入する
+function buyResearch(id) {
+  if (!isResearchUnlocked()) return;
+  ensureResearchState();
+  const node = RESEARCH_NODES.find(n => n.id === id);
+  if (!node) return;
+  if (isResearchDone(id)) return;
+  if (!isResearchNodeAvailable(node)) return;
+
+  const cost = getResearchNodeCost(node);
+  const currentIP = getIP();
+  if (currentIP.lt(cost)) return;
+
+  game.infinity.ip = currentIP.sub(cost);
+  game.research.completed[id] = true;
+
+  // P-30クリアでBreak Infinityの解放条件を満たす
+  if (id === 'P30' && typeof updateBreakInfinityUnlockSection === 'function') {
+    updateBreakInfinityUnlockSection();
+  }
+
+  playSE('unlock');
+  updateResearchTab();
+  updateUI(currentPPSValue);
+  showNotification(t('notif.researchCompleteTitle'), t('notif.researchCompleteMsg', { id: node.id, effect: t(`research.${node.id}.effect`) }), '🔬', 'achievement');
+}
+
+// --- 研究による各種倍率・上限ボーナス（他の計算式から参照される） ---
+
+// 全PPS系（P1・P9・P26）のみ: グローバル倍率チェーンに乗算される
+function getResearchGlobalMult() {
+  let mult = 1;
+  if (isResearchDone('P1')) mult *= 1.1;
+  if (isResearchDone('P9')) mult *= 1.5;
+  if (isResearchDone('P26')) mult *= 1.3;
+  return mult;
+}
+
+// Linac倍率系は廃止（旧P6・P11・P19）。常に1を返す。
+function getResearchLinacMult() {
+  return 1;
+}
+
+// Shift倍率系は廃止（旧P7・P20）。常に1を返す。
+function getResearchShiftMult() {
+  return 1;
+}
+
+// Big Crunch獲得IP倍率系（P14・P27）
+function getResearchIPGainMult() {
+  let mult = 1;
+  if (isResearchDone('P14')) mult *= 2;
+  if (isResearchDone('P27')) mult *= 5;
+  return mult;
+}
+
+// Time Fluxアップグレードコスト倍率（P6）
+function getResearchTFCapUpgradeCostMult() {
+  let mult = 1;
+  if (isResearchDone('P6')) mult *= 0.9;
+  return mult;
+}
+
+// 実績ポイント(AP)獲得倍率（P7・P20）
+function getResearchAPMult() {
+  let mult = 1;
+  if (isResearchDone('P7')) mult *= 1.1;
+  if (isResearchDone('P20')) mult *= 1.2;
+  return mult;
+}
+
+// Time Fluxが溜まる速度の倍率（P11・P12）
+function getResearchTFGainMult() {
+  let mult = 1;
+  if (isResearchDone('P11')) mult *= 1.1;
+  if (isResearchDone('P12')) mult *= 1.1;
+  return mult;
+}
+
+// Time Flux基礎上限の倍率（P19）
+function getResearchTFBaseMaxMult() {
+  return isResearchDone('P19') ? 2 : 1;
+}
+
+// 研究P-17: Break Infinity解放後、Big Crunchを1回行うごとに全倍率が×2になる
+// （game.breakInfinity.postCrunchCount = Break Infinity解放後に行ったBig Crunchの回数。
+// 　triggerBigCrunch()側でカウントし、ここではその回数分だけ2倍を掛け合わせるだけ）
+function getResearchBreakCrunchMult() {
+  if (!isResearchDone('P17')) return 1;
+  const count = (game.breakInfinity && game.breakInfinity.postCrunchCount) || 0;
+  if (count <= 0) return 1;
+  return decimalPowInt(2, count);
+}
+
+// Big Crunch倍率の必要桁数の割合（P22で-10%、必要桁数が減り倍率が早く増える）
+function getResearchCrunchDigitDivisorMult() {
+  return isResearchDone('P22') ? 0.9 : 1;
+}
+
+// Big Crunch回数ボーナス（P29: IP+1%/回・上限+100%、P30: 上限+300%に拡張）
+function getResearchCrunchCountIPMult() {
+  if (!isResearchDone('P29')) return 1;
+  const cap = isResearchDone('P30') ? 3.0 : 1.0;
+  const count = (game.infinity && game.infinity.crunchCount) || 0;
+  const bonus = Math.min(cap, count * 0.01);
+  return 1 + bonus;
+}
+
+// Infinity強化（レベル制）の購入コスト倍率（P15・P28）
+function getResearchInfUpgradeCostMult() {
+  let mult = 1;
+  if (isResearchDone('P15')) mult *= 0.95;
+  if (isResearchDone('P28')) mult *= 0.9;
+  return mult;
+}
+
+// Acceleratorの購入コスト倍率（P21）
+function getResearchGeneratorCostMult() {
+  let mult = 1;
+  if (isResearchDone('P21')) mult *= 0.95;
+  return mult;
+}
+
+// レベル制Infinity強化(id指定)のレベル上限に加算されるボーナス
+// P2:Mk1-4+2 / P3:Mk5-8+2 / P10:全Mk+3 / P16:全Mk+5 / P23:全Mk+10
+// P5:IP倍率強化+2 / P8:+2 / P18:+5 / P25:+10
+// P13:シフト強化+5 / P24:+10
+// P30:全アップグレード+20
+function getResearchLevelCapBonus(id) {
+  let bonus = 0;
+  if (id >= 1 && id <= 4 && isResearchDone('P2')) bonus += 2;
+  if (id >= 5 && id <= 8 && isResearchDone('P3')) bonus += 2;
+  if (id >= 1 && id <= 8) {
+    if (isResearchDone('P10')) bonus += 3;
+    if (isResearchDone('P16')) bonus += 5;
+    if (isResearchDone('P23')) bonus += 10;
+  }
+  if (id === 9) {
+    if (isResearchDone('P5')) bonus += 2;
+    if (isResearchDone('P8')) bonus += 2;
+    if (isResearchDone('P18')) bonus += 5;
+    if (isResearchDone('P25')) bonus += 10;
+  }
+  if (id === SHIFT_INCREMENT_ID) {
+    if (isResearchDone('P13')) bonus += 5;
+    if (isResearchDone('P24')) bonus += 10;
+  }
+  if (isResearchDone('P30')) bonus += 20;
+  return bonus;
+}
+
+// --- 研究タブの表示 ---
+function updateResearchSectionVisibility() {
+  const tabBtn = document.getElementById('tab-btn-research');
+  if (!tabBtn) return;
+  tabBtn.style.display = isResearchUnlocked() ? 'block' : 'none';
+}
+
+// ノードの状態（購入済み/購入可能/未開放）に応じたCSSクラス名を返す
+function getResearchNodeState(node) {
+  if (isResearchDone(node.id)) return 'done';
+  if (isResearchNodeAvailable(node)) return 'available';
+  return 'locked';
+}
+
+function updateResearchTab() {
+  const wrap = document.getElementById('research-tree-wrap');
+  const grid = document.getElementById('research-grid');
+  const svg = document.getElementById('research-lines');
+  if (!wrap || !grid || !svg) return;
+  ensureResearchState();
+
+  const ipEl = document.getElementById('research-ip-display');
+  const currentIP = getIP();
+  if (ipEl) ipEl.textContent = format(currentIP);
+
+  if (!grid.dataset.initialized) {
+    grid.dataset.initialized = '1';
+    grid.style.gridTemplateColumns = `repeat(${RESEARCH_COL_COUNT}, 1fr)`;
+    RESEARCH_NODES.forEach(node => {
+      const card = document.createElement('div');
+      card.className = 'research-node';
+      card.id = `research-node-${node.id}`;
+      card.style.gridColumn = `${node.col} / span 2`;
+      card.style.gridRow = `${node.row}`;
+      card.innerHTML = `
+        <div class="research-node-id">${node.id}</div>
+        <div class="research-node-effect">${t(`research.${node.id}.effect`)}</div>
+        <div class="research-node-cost">${format(node.cost)} IP</div>
+      `;
+      card.onclick = () => buyResearch(node.id);
+      grid.appendChild(card);
+    });
+  }
+
+  RESEARCH_NODES.forEach(node => {
+    const card = document.getElementById(`research-node-${node.id}`);
+    if (!card) return;
+    const state = getResearchNodeState(node);
+    card.classList.toggle('done', state === 'done');
+    card.classList.toggle('available', state === 'available');
+    card.classList.toggle('locked', state === 'locked');
+    card.classList.toggle('affordable', state === 'available' && currentIP.gte(node.cost));
+  });
+
+  drawResearchConnectors();
+}
+
+// 依存関係を線で結ぶ（ノードの実際の描画位置を元にSVGパスを引く）
+function drawResearchConnectors() {
+  const grid = document.getElementById('research-grid');
+  const svg = document.getElementById('research-lines');
+  if (!grid || !svg) return;
+
+  const gridRect = grid.getBoundingClientRect();
+  svg.setAttribute('width', gridRect.width);
+  svg.setAttribute('height', gridRect.height);
+  svg.setAttribute('viewBox', `0 0 ${gridRect.width} ${gridRect.height}`);
+  svg.innerHTML = '';
+
+  RESEARCH_NODES.forEach(node => {
+    if (!node.requires) return;
+    const childEl = document.getElementById(`research-node-${node.id}`);
+    if (!childEl) return;
+    const childRect = childEl.getBoundingClientRect();
+    const childX = childRect.left - gridRect.left + childRect.width / 2;
+    const childY = childRect.top - gridRect.top;
+
+    node.requires.forEach(reqId => {
+      const parentEl = document.getElementById(`research-node-${reqId}`);
+      if (!parentEl) return;
+      const parentRect = parentEl.getBoundingClientRect();
+      const parentX = parentRect.left - gridRect.left + parentRect.width / 2;
+      const parentY = parentRect.top - gridRect.top + parentRect.height;
+
+      const midY = (parentY + childY) / 2;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M ${parentX} ${parentY} C ${parentX} ${midY}, ${childX} ${midY}, ${childX} ${childY}`);
+      const done = isResearchDone(reqId) && isResearchDone(node.id);
+      path.setAttribute('class', done ? 'research-line done' : 'research-line');
+      svg.appendChild(path);
+    });
+  });
 }
 
 // --- ショップ: テーマ定義 ---
@@ -560,7 +944,9 @@ function getInitialState() {
       startTime: Date.now(),
       totalParticles: new Decimal(10),
       totalLinacs: 0,
+      totalShifts: 0,
       totalTimePlayed: 0,
+      uncorrectedPlayTime: 0,
       highestParticles: new Decimal(10),
       highestPPS: 0,
       totalMkPurchased: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -582,6 +968,7 @@ function getInitialState() {
       skipLinacConf: false,
       skipShiftConf: false,
       skipCrunchAnim: false,
+      skipChallengeConf: false,
       glitchEffect: true,
       sfxEnabled: true,
       bgmEnabled: true,
@@ -595,6 +982,7 @@ function getInitialState() {
     lastSaveTime: Date.now(),
     timeFlux: { time: 0, speed: 1, capLevel: 0 },
     challenge: getDefaultChallengeState(),
+    research: getDefaultResearchState(),
     breakInfinity: (typeof getDefaultBreakInfinityState === 'function') ? getDefaultBreakInfinityState() : { unlocked: false },
     lastTick: Date.now(),
     autobuyerTimer: 0,
@@ -625,6 +1013,11 @@ function format(num) {
     if (num.exponent < 300) {
       // 通常範囲: numberに変換して以下の既存ロジックへ委譲
       num = num.toNumber();
+    } else if (num.mantissa === 0) {
+      // sub()等でちょうど0になった場合、mantissaは0でもexponentは直前の値が
+      // 残ったままになる（Decimalライブラリの仕様）。ここで特別扱いしないと
+      // 「0.00e416」のような壊れた表示になってしまうため、素直に0として扱う。
+      return "0.00";
     } else {
       // 1e300超: mantissa/exponentから直接、常に科学的記法で表示する
       return `${num.mantissa.toFixed(2)}e${num.exponent}`;
@@ -694,17 +1087,19 @@ function decimalPowInt(base, n) {
 
 // コスト補正: 通常コスト → Infinityコスト補正 → Challengeコスト補正 の順で適用
 function getInfinityCostMultiplier() {
-  // 現状Infinity側のコスト補正アップグレードは無いが、将来の拡張用フック
-  return 1;
+  // 研究P-21(Acceleratorコスト-5%)
+  return (typeof getResearchGeneratorCostMult === 'function') ? getResearchGeneratorCostMult() : 1;
 }
 
 function getChallengeCostMultiplier() {
   // チャレンジ中のみ適用される一時的なコスト倍率
-  if (game.challenge && game.challenge.active) {
-    const c = CHALLENGES.find(ch => ch.id === game.challenge.active);
-    if (c && c.costMult) return c.costMult;
-  }
-  return 1;
+  // （チャレンジ7中は、同時進行扱いのチャレンジ1〜6のcostMultをすべて乗算する）
+  let mult = 1;
+  getEffectiveChallengeIds().forEach(id => {
+    const c = CHALLENGES.find(ch => ch.id === id);
+    if (c && c.costMult) mult *= c.costMult;
+  });
+  return mult;
 }
 
 function getChallengeCostRewardMultiplier() {
@@ -793,7 +1188,53 @@ function getShiftIncrement() {
 
 function getLinacBaseMult() {
   const s = game.shifts || 0;
-  return 1.2 + (s * getShiftIncrement());
+  let base = 1.2;
+  // チャレンジ5「倍率低下」クリア報酬: ライナックの初期倍率を永久に1.8へ引き上げる
+  if (game.challenge && game.challenge.completed && game.challenge.completed['multDrop']) {
+    base = 1.8;
+  }
+  // チャレンジ5挑戦中（チャレンジ7で同時進行扱いの場合も含む）: ライナック倍率が×0.9
+  if (getEffectiveChallengeIds().includes('multDrop')) {
+    const c = CHALLENGES.find(ch => ch.id === 'multDrop');
+    if (c && c.linacBaseEffectMult) base *= c.linacBaseEffectMult;
+  }
+  return base + (s * getShiftIncrement());
+}
+
+// レベル制Infinity強化の最大レベルを返す。
+// チャレンジ4「倍率不変」クリア報酬: シフト強化(id=SHIFT_INCREMENT_ID)のみ上限が15に増加する
+// 研究（P-2/P-3/P-8/P-10/P-13/P-16/P-18/P-23/P-24/P-25/P-30）でも上限が加算される
+function getUpgradeMaxLevel(id) {
+  let cap = INF_UPGRADE_MAX_LEVEL;
+  if (typeof getResearchLevelCapBonus === 'function') cap += getResearchLevelCapBonus(id);
+  if (id === SHIFT_INCREMENT_ID && game.challenge && game.challenge.completed && game.challenge.completed['fixedRatio']) {
+    cap += 5;
+  }
+  return cap;
+}
+
+// チャレンジ4「倍率不変」挑戦中はシフトが使用不可
+// （チャレンジ7で同時進行扱いの場合も含む）
+function isChallengeShiftDisabled() {
+  return getEffectiveChallengeIds().some(id => {
+    const c = CHALLENGES.find(ch => ch.id === id);
+    return !!(c && c.disableShift);
+  });
+}
+
+// チャレンジ6「購入制限」挑戦中、対象Acceleratorの購入可能数をbuyLimitCountまでに制限する
+// （チャレンジ7で同時進行扱いの場合も含む）
+function getChallengeBuyCap(index, requestedCap) {
+  let cap = requestedCap;
+  getEffectiveChallengeIds().forEach(id => {
+    const c = CHALLENGES.find(ch => ch.id === id);
+    if (c && Array.isArray(c.buyLimitGens) && c.buyLimitGens.includes(index)) {
+      const gen = game.generators[index];
+      const remaining = Math.max(0, (c.buyLimitCount || 0) - (gen ? (gen.bought || 0) : 0));
+      cap = Math.min(cap, remaining);
+    }
+  });
+  return cap;
 }
 
 function hasUpgrade(id) {
@@ -811,7 +1252,8 @@ function getUpgradeLevel(id) {
 function getUpgradeCost(up) {
   if (!up.leveled) return up.cost;
   const level = getUpgradeLevel(up.id);
-  return up.baseCost * Math.pow(2, level);
+  const researchMult = (typeof getResearchInfUpgradeCostMult === 'function') ? getResearchInfUpgradeCostMult() : 1;
+  return up.baseCost * Math.pow(2, level) * researchMult;
 }
 
 function getLinacMultValue() {
@@ -852,16 +1294,22 @@ function getPerGenInfMult(genIndex) {
       try { mult = mulSafe(mult, up.effect(game)); } catch (e) {}
     }
   });
+  // 研究P-4: 全Mk倍率 ×1.2
+  if (typeof isResearchDone === 'function' && isResearchDone('P4')) {
+    mult = mulSafe(mult, 1.2);
+  }
   return mult;
 }
 
 function getChallengeMultiplier() {
   // チャレンジ中のみ適用される一時的な倍率
-  if (game.challenge && game.challenge.active) {
-    const c = CHALLENGES.find(ch => ch.id === game.challenge.active);
-    if (c && c.effectMult) return c.effectMult;
-  }
-  return 1;
+  // （チャレンジ7中は、同時進行扱いのチャレンジ1〜6のeffectMultをすべて乗算する）
+  let mult = 1;
+  getEffectiveChallengeIds().forEach(id => {
+    const c = CHALLENGES.find(ch => ch.id === id);
+    if (c && c.effectMult) mult *= c.effectMult;
+  });
+  return mult;
 }
 
 function getChallengeRewardMultiplier() {
@@ -876,7 +1324,16 @@ function getChallengeRewardMultiplier() {
 }
 
 function getGlobalMultiplier() {
-  return mulSafe(getLinacMultValue(), getGlobalInfinityMultValue(), getChallengeMultiplier(), getChallengeRewardMultiplier());
+  return mulSafe(
+    getLinacMultValue(),
+    getGlobalInfinityMultValue(),
+    getChallengeMultiplier(),
+    getChallengeRewardMultiplier(),
+    (typeof getResearchGlobalMult === 'function') ? getResearchGlobalMult() : 1,
+    (typeof getResearchLinacMult === 'function') ? getResearchLinacMult() : 1,
+    (typeof getResearchShiftMult === 'function') ? getResearchShiftMult() : 1,
+    (typeof getResearchBreakCrunchMult === 'function') ? getResearchBreakCrunchMult() : 1
+  );
 }
 
 function getLinacReq() {
@@ -919,7 +1376,8 @@ function getBigCrunchMultiplier() {
   if (p.lt(BREAK_INFINITY_CRUNCH_BASE)) return new Decimal(0);
   const exponent = p.log10();
   if (!isFinite(exponent)) return new Decimal(1);
-  const count = Math.floor(exponent / 308);
+  const divisorMult = (typeof getResearchCrunchDigitDivisorMult === 'function') ? getResearchCrunchDigitDivisorMult() : 1;
+  const count = Math.floor(exponent / (308 * divisorMult));
   return new Decimal(count < 1 ? 1 : count);
 }
 
@@ -1060,6 +1518,11 @@ function gameLoop() {
   if (dt > 1) dt = 1; 
   game.lastTick = now;
 
+  // 未補正プレイ時間: Time Flux等の影響を受けない、実際にゲームを開いて
+  // プレイしていた実時間（オフライン進行中はこの関数自体が早期returnするため加算されない）
+  if (!game.stats.uncorrectedPlayTime) game.stats.uncorrectedPlayTime = 0;
+  game.stats.uncorrectedPlayTime += dt;
+
   // Time Flux（TF）によるゲーム速度の加速。TFを消費している間だけ倍速になる。
   let effectiveDt = dt;
   if (typeof applyTimeFlux === 'function') {
@@ -1087,12 +1550,12 @@ function gameLoop() {
 
 // --- アクション ---
 // アクティブなチャレンジによってオートバイヤー・Mキーが無効化されているか
+// （チャレンジ7で同時進行扱いの場合も含む）
 function isChallengeAutomationDisabled() {
-  if (game.challenge && game.challenge.active) {
-    const c = CHALLENGES.find(ch => ch.id === game.challenge.active);
-    if (c && c.disableAutomation) return true;
-  }
-  return false;
+  return getEffectiveChallengeIds().some(id => {
+    const c = CHALLENGES.find(ch => ch.id === id);
+    return !!(c && c.disableAutomation);
+  });
 }
 
 // Challenge 3「初心に戻る」クリア後に解放される自動ライナックが使用可能か
@@ -1127,7 +1590,8 @@ function runAutobuyers() {
       // 「買えるだけ買う」ことで、オフライン進行やTime Warpなど1回のtickが
       // 長時間に相当する場合でも自動化が正しく機能するようにする
       // （固定回数のループだと、大きくジャンプしたdtに対して購入量が頭打ちになってしまう）
-      const { count, cost } = calculateAffordablePurchase(gen, BUY_MAX_SAFETY_CAP);
+      const cap = getChallengeBuyCap(index, BUY_MAX_SAFETY_CAP);
+      const { count, cost } = calculateAffordablePurchase(gen, cap);
       if (count > 0) {
         setParticles(toDecimal(game.particles).sub(cost));
         gen.amount = amtAdd(gen.amount, count);
@@ -1191,7 +1655,7 @@ function buyGenerator(index) {
   if (!gen.unlocked) return;
 
   const mode = game.settings.buyAmount;
-  const cap = (mode === 'max') ? BUY_MAX_SAFETY_CAP : mode;
+  const cap = getChallengeBuyCap(index, (mode === 'max') ? BUY_MAX_SAFETY_CAP : mode);
   const { count, cost } = calculateAffordablePurchase(gen, cap);
   if (count <= 0) return;
 
@@ -1214,7 +1678,8 @@ function buyMaxGenerator(index) {
   const gen = game.generators[index];
   if (!gen || !gen.unlocked) return;
 
-  const { count, cost } = calculateAffordablePurchase(gen, BUY_MAX_SAFETY_CAP);
+  const cap = getChallengeBuyCap(index, BUY_MAX_SAFETY_CAP);
+  const { count, cost } = calculateAffordablePurchase(gen, cap);
   if (count <= 0) return;
 
   setParticles(toDecimal(game.particles).sub(cost));
@@ -1292,7 +1757,6 @@ function executeLinac() {
   // アンロックフラグ維持
   game.unlocks.linac = true; 
 
-  saveGame();
   updateUI(0);
   showNotification(t('notif.linacTitle'), t('notif.linacMsg', { val: format(newMult) }), '🌌');
   playSE('linac');
@@ -1300,6 +1764,7 @@ function executeLinac() {
 }
 
 function doLinacShift() {
+  if (isChallengeShiftDisabled()) return;
   const shiftReq = getShiftReq();
   if ((game.linacs || 0) < shiftReq) return;
   const currentBase = getLinacBaseMult();
@@ -1321,6 +1786,7 @@ function doLinacShift() {
 
 function executeLinacShift(nextBase) {
   game.shifts = (game.shifts || 0) + 1;
+  game.stats.totalShifts = (game.stats.totalShifts || 0) + 1;
   game.linacs = 0;
   game.stats.lastLinacCycleStart = Date.now();
   setParticles(new Decimal(20));
@@ -1332,7 +1798,6 @@ function executeLinacShift(nextBase) {
   
   game.unlocks.linac = true; 
 
-  saveGame();
   updateUI(0);
   showNotification(t('notif.shiftTitle'), t('notif.shiftMsg', { val: format(nextBase) }), '🔄');
   playSE('shift');
@@ -1361,7 +1826,6 @@ function buyInfinityUpgrade(id) {
       game.infinity.ip = currentIP.sub(upgrade.cost);
       if (!game.infinity.upgrades) game.infinity.upgrades = [];
       game.infinity.upgrades.push(id);
-      saveGame();
       updateUI(0);
       updateInfinityTab();
     }
@@ -1369,13 +1833,12 @@ function buyInfinityUpgrade(id) {
   }
 
   // レベル制購入（購入毎にコストが2倍・最大レベルまで）
-  if (getUpgradeLevel(id) >= INF_UPGRADE_MAX_LEVEL) return;
+  if (getUpgradeLevel(id) >= getUpgradeMaxLevel(id)) return;
   const cost = getUpgradeCost(upgrade);
   if (currentIP.gte(cost)) {
     game.infinity.ip = currentIP.sub(cost);
     if (!game.infinity.levels) game.infinity.levels = {};
     game.infinity.levels[id] = (game.infinity.levels[id] || 0) + 1;
-    saveGame();
     updateUI(0);
     updateInfinityTab();
   }
@@ -1391,6 +1854,7 @@ function updateUI(pps) {
 
   updateAutomationSectionVisibility();
   updateChallengeSectionVisibility();
+  if (typeof updateResearchSectionVisibility === 'function') updateResearchSectionVisibility();
   const ipContainer = document.getElementById('ip-display-container');
   const infTabBtn = document.getElementById('tab-btn-infinity');
   const hasReachedInfinity = game.infinity && (game.infinity.crunchCount > 0 || getIP().gt(0));
@@ -1469,7 +1933,7 @@ function updateUI(pps) {
 
       const btnShift = document.getElementById('btn-shift');
       if (btnShift) {
-        if (game.linacs >= shiftReq) {
+        if (game.linacs >= shiftReq && !isChallengeShiftDisabled()) {
           btnShift.style.display = 'inline-block';
           const nextBase = baseMult + getShiftIncrement();
           btnShift.textContent = t('main.shift');
@@ -1581,7 +2045,7 @@ function updateUI(pps) {
 
     // 購入ボタン: 選択中のモード(1/10/100/max)に応じたラベルと有効/無効状態
     const mode = game.settings.buyAmount;
-    const cap = (mode === 'max') ? BUY_MAX_SAFETY_CAP : mode;
+    const cap = getChallengeBuyCap(index, (mode === 'max') ? BUY_MAX_SAFETY_CAP : mode);
     const { count: affordableCount, cost: affordableCost } = calculateAffordablePurchase(gen, cap);
 
     if (mode === 'max') {
@@ -1606,6 +2070,7 @@ function updateStats() {
   const currentRunTime = (Date.now() - game.stats.startTime) / 1000;
   document.getElementById('stat-time').textContent = `${formatTime(currentRunTime)}`;
   document.getElementById('stat-total-playtime').textContent = formatTime(game.stats.totalTimePlayed || 0);
+  document.getElementById('stat-uncorrected-playtime').textContent = formatTime(game.stats.uncorrectedPlayTime || 0);
   document.getElementById('stat-total').textContent = format(game.stats.totalParticles);
   document.getElementById('stat-current-pps').textContent = `${format(currentPPSValue)} ${t('stats.perSec')}`;
   document.getElementById('stat-highest-pps').textContent = `${format(game.stats.highestPPS || 0)} ${t('stats.perSec')}`;
@@ -1634,9 +2099,9 @@ function updateStats() {
 
   const statShift = document.getElementById('stat-shift');
   const rowShift = document.getElementById('row-shift');
-  if (game.shifts > 0 && statShift && rowShift) {
+  if ((game.stats.totalShifts || 0) > 0 && statShift && rowShift) {
     rowShift.style.display = 'flex';
-    statShift.textContent = `${game.shifts} ${t('stats.timesSuffix')}`;
+    statShift.textContent = `${game.stats.totalShifts} ${t('stats.timesSuffix')}`;
   }
 
   // Accelerator 累計購入数（初回に一覧を構築し、以降は値のみ更新）
@@ -1728,9 +2193,9 @@ function updateInfinityTab() {
       } else {
         // レベル制購入（最大レベルまで購入可能・コストは購入毎に2倍）
         const level = getUpgradeLevel(up.id);
-        const isMaxLevel = level >= INF_UPGRADE_MAX_LEVEL;
-        btn.classList.remove('bought');
-        btn.classList.toggle('disabled', isMaxLevel || currentIP.lt(cost));
+        const isMaxLevel = level >= getUpgradeMaxLevel(up.id);
+        btn.classList.toggle('bought', isMaxLevel);
+        btn.classList.toggle('disabled', !isMaxLevel && currentIP.lt(cost));
 
         let currentEffect = 1, nextEffect = 1;
         try { currentEffect = up.effect(game); } catch(e){}
@@ -1779,13 +2244,22 @@ function triggerBigCrunch() {
   const currentTime = Date.now() - startTime;
   
   if (!game.infinity) game.infinity = { ip: new Decimal(0), crunchCount:0, bestTime:null, upgrades:[], broken:false };
-  
+
+  // Break Infinity解放後のBig Crunchなら、研究P-17用のカウントを1増やす
+  // （P-17未取得でもカウント自体は積み上げておき、後から取得した時にそれまでの回数分が反映されるようにする）
+  if (typeof isBreakInfinityActive === 'function' && isBreakInfinityActive()) {
+    if (typeof ensureBreakInfinityState === 'function') ensureBreakInfinityState();
+    game.breakInfinity.postCrunchCount = (game.breakInfinity.postCrunchCount || 0) + 1;
+  }
+
   // 通常のIP獲得量に、Big Crunch倍率（1.79e308を何個分保持していたか・切り捨て）を掛ける。
   // Break Infinity未解放時や、ちょうど上限到達時点でのCrunchは倍率1のため、既存の挙動と変わらない。
   const baseGainedIP = Math.pow(2, getUpgradeLevel(9));
   let crunchMult = getBigCrunchMultiplier();
   if (crunchMult.lt(1)) crunchMult = new Decimal(1);
-  let gainedIP = mulSafe(baseGainedIP, crunchMult);
+  const researchIPMult = (typeof getResearchIPGainMult === 'function') ? getResearchIPGainMult() : 1;
+  const crunchCountMult = (typeof getResearchCrunchCountIPMult === 'function') ? getResearchCrunchCountIPMult() : 1;
+  let gainedIP = mulSafe(baseGainedIP, crunchMult, researchIPMult, crunchCountMult);
   game.infinity.ip = getIP().add(gainedIP);
   game.infinity.crunchCount = (game.infinity.crunchCount || 0) + 1;
   if (game.infinity.bestTime === null || currentTime < game.infinity.bestTime) {
@@ -1809,6 +2283,8 @@ function triggerBigCrunch() {
       showNotification(t('notif.challengeCompleteTitle'), t('notif.challengeCompleteMsg', { title: getChallengeTitle(c), reward: getChallengeRewardLabel(c) }), '🏅', 'achievement');
       playSE('achievement');
       updateChallengeTab();
+      if (typeof updateResearchSectionVisibility === 'function') updateResearchSectionVisibility();
+      if (typeof updateResearchTab === 'function') updateResearchTab();
     } else {
       game.challenge.active = null;
     }
@@ -1822,10 +2298,9 @@ function triggerBigCrunch() {
   }
 
   isCrunching = true;
-  saveGame();
   const overlay = document.getElementById('crunch-overlay');
   if(overlay) overlay.classList.add('active');
-  
+
   setTimeout(() => { performInfinityReset(); }, 5000);
   setTimeout(() => {
     if(overlay) overlay.classList.remove('active');
@@ -1863,7 +2338,6 @@ function performInfinityReset() {
     updateInfinityTab();
     updateAchievementsTab();
     document.body.classList.remove('glitched');
-    saveGame();
   }
   checkAchievements();
   console.log("Universe Reborn.");
@@ -1919,6 +2393,11 @@ function loadGame() {
         ...(parsed.challenge || {}),
         completed: { ...getDefaultChallengeState().completed, ...((parsed.challenge && parsed.challenge.completed) || {}) }
       };
+      game.research = {
+        ...getDefaultResearchState(),
+        ...(parsed.research || {}),
+        completed: { ...getDefaultResearchState().completed, ...((parsed.research && parsed.research.completed) || {}) }
+      };
       game.breakInfinity = {
         ...getDefaultBreakInfinityState(),
         ...(parsed.breakInfinity || {})
@@ -1943,6 +2422,7 @@ function loadGame() {
       if (game.settings.skipLinacConf === undefined) game.settings.skipLinacConf = false;
       if (game.settings.skipShiftConf === undefined) game.settings.skipShiftConf = false;
       if (game.settings.skipCrunchAnim === undefined) game.settings.skipCrunchAnim = false;
+      if (game.settings.skipChallengeConf === undefined) game.settings.skipChallengeConf = false;
       if (game.settings.glitchEffect === undefined) game.settings.glitchEffect = true;
       if (game.settings.sfxEnabled === undefined) game.settings.sfxEnabled = true;
       if (game.settings.bgmEnabled === undefined) game.settings.bgmEnabled = true;
@@ -1951,6 +2431,9 @@ function loadGame() {
       if (!game.settings.lang || !SUPPORTED_LANGS.includes(game.settings.lang)) game.settings.lang = getLang();
 
       if (!game.stats.totalTimePlayed) game.stats.totalTimePlayed = 0;
+      if (!game.stats.uncorrectedPlayTime) game.stats.uncorrectedPlayTime = 0;
+      // 総Shift回数（累計・リセットされない）が無い旧セーブは、現在の宇宙のシフト回数を初期値として補完する
+      if (!game.stats.totalShifts) game.stats.totalShifts = game.shifts || 0;
       // 既存セーブの不足データを自動補完（統計拡張）
       game.stats.highestParticles = decimalFromSaved(parsed.stats && parsed.stats.highestParticles, 0);
       if (game.stats.highestParticles.lt(game.particles)) {
@@ -2158,7 +2641,9 @@ function checkAchievements() {
     try { result = !!a.check(game); } catch(e) {}
     if (result) {
       game.achievements[a.id] = true;
-      const pts = (typeof a.points === 'number') ? a.points : 10;
+      const basePts = (typeof a.points === 'number') ? a.points : 10;
+      const apMult = (typeof getResearchAPMult === 'function') ? getResearchAPMult() : 1;
+      const pts = Math.round(basePts * apMult);
       game.achievementPoints += pts;
       anyUnlocked = true;
       showNotification(t('notif.achievementUnlocked', { title: getAchTitle(a) }), `${getAchDesc(a)}<br>+${pts} AP`, '🏆', 'achievement');
@@ -2166,7 +2651,6 @@ function checkAchievements() {
   });
 
   if (anyUnlocked && !offlineSimulating) {
-    saveGame(true);
     updateAchievementsTab();
     if (typeof updateShopTab === 'function') updateShopTab();
   }
@@ -2470,9 +2954,11 @@ function updateChallengeTab() {
 
     const completed = !!(game.challenge.completed && game.challenge.completed[c.id]);
     const active = game.challenge.active === c.id;
+    const locked = !completed && !active && isChallengeLocked(c);
 
     card.classList.toggle('completed', completed);
     card.classList.toggle('active', active);
+    card.classList.toggle('locked', locked);
 
     if (completed) {
       btn.textContent = t('challenge.clear');
@@ -2482,6 +2968,10 @@ function updateChallengeTab() {
       btn.textContent = t('challenge.exit');
       btn.classList.remove('disabled');
       btn.onclick = () => exitChallenge(c.id);
+    } else if (locked) {
+      btn.textContent = t('challenge.locked');
+      btn.classList.add('disabled');
+      btn.onclick = null;
     } else {
       btn.textContent = t('challenge.start');
       btn.classList.remove('disabled');
@@ -2497,15 +2987,20 @@ function startChallenge(id) {
   if (!game.challenge) game.challenge = getDefaultChallengeState();
   if (game.challenge.active) return; // 同時に複数開始しない
   if (game.challenge.completed && game.challenge.completed[id]) return; // クリア済みは再開始不可
+  if (isChallengeLocked(c)) return; // 挑戦条件（他チャレンジのクリア）未達成
 
-  showModal({
-    title: t('challenge.number', { num: c.number || '' }),
-    body: t('challenge.startConfirmBody'),
-    buttons: [
-      { label: t('common.cancel'), onClick: closeModal },
-      { label: t('common.ok'), primary: true, onClick: () => { closeModal(); executeStartChallenge(id); } }
-    ]
-  });
+  if (!game.settings.skipChallengeConf) {
+    showModal({
+      title: t('challenge.number', { num: c.number || '' }),
+      body: t('challenge.startConfirmBody'),
+      buttons: [
+        { label: t('common.cancel'), onClick: closeModal },
+        { label: t('common.ok'), primary: true, onClick: () => { closeModal(); executeStartChallenge(id); } }
+      ]
+    });
+    return;
+  }
+  executeStartChallenge(id);
 }
 
 function executeStartChallenge(id) {
@@ -2533,8 +3028,8 @@ function executeStartChallenge(id) {
   if (!game.infinity) game.infinity = { ip: 0, crunchCount: 0, bestTime: null, upgrades: [], levels: {}, broken: false };
 
   game.challenge.active = id;
+  game.stats.totalChallengesStarted = (game.stats.totalChallengesStarted || 0) + 1;
 
-  saveGame();
   updateUI(0);
   updateInfinityTab();
   updateChallengeTab();
@@ -2548,14 +3043,18 @@ function exitChallenge(id) {
   const c = CHALLENGES.find(ch => ch.id === id);
   if (!c) return;
 
-  showModal({
-    title: t('challenge.number', { num: c.number || '' }),
-    body: t('challenge.exitConfirmBody'),
-    buttons: [
-      { label: t('common.cancel'), onClick: closeModal },
-      { label: t('common.ok'), primary: true, danger: true, onClick: () => { closeModal(); executeExitChallenge(id); } }
-    ]
-  });
+  if (!game.settings.skipChallengeConf) {
+    showModal({
+      title: t('challenge.number', { num: c.number || '' }),
+      body: t('challenge.exitConfirmBody'),
+      buttons: [
+        { label: t('common.cancel'), onClick: closeModal },
+        { label: t('common.ok'), primary: true, danger: true, onClick: () => { closeModal(); executeExitChallenge(id); } }
+      ]
+    });
+    return;
+  }
+  executeExitChallenge(id);
 }
 
 // チャレンジ中断の実処理: 現在の宇宙（粒子・Linac・Shift）をInfinity直後の状態にリセットする。
@@ -2581,7 +3080,6 @@ function executeExitChallenge(id) {
 
   game.challenge.active = null;
 
-  saveGame();
   updateUI(0);
   updateInfinityTab();
   updateChallengeTab();
@@ -2611,6 +3109,10 @@ function switchTab(name, btn) {
 
   if (name === 'shop' && typeof updateShopTab === 'function') updateShopTab();
   if (name === 'cheat' && typeof updateCheatTab === 'function') updateCheatTab();
+  if (name === 'research' && typeof updateResearchTab === 'function') {
+    // 直前までdisplay:noneだったため、レイアウト確定後（フェードインの次フレーム）に線を引き直す
+    requestAnimationFrame(() => updateResearchTab());
+  }
 }
 
 // Infinity画面内のサブタブ切り替え（Main / Break Infinity）
@@ -2819,6 +3321,7 @@ function initSettingsUI() {
     toggleContainer.appendChild(createToggle('chk-linac', t('settings.skipLinac'), 'skipLinacConf'));
     toggleContainer.appendChild(createToggle('chk-shift', t('settings.skipShift'), 'skipShiftConf'));
     toggleContainer.appendChild(createToggle('chk-crunch', t('settings.skipCrunch'), 'skipCrunchAnim'));
+    toggleContainer.appendChild(createToggle('chk-challenge', t('settings.skipChallenge'), 'skipChallengeConf'));
     updateSkipToggleVisibility();
   }
 
@@ -2884,10 +3387,13 @@ function updateSkipToggleVisibility() {
   if (linacRow) linacRow.style.display = ((game.stats && game.stats.totalLinacs) >= 1) ? 'block' : 'none';
 
   const shiftRow = document.getElementById('toggle-row-chk-shift');
-  if (shiftRow) shiftRow.style.display = ((game.shifts || 0) >= 1) ? 'block' : 'none';
+  if (shiftRow) shiftRow.style.display = ((game.stats.totalShifts || 0) >= 1) ? 'block' : 'none';
 
   const crunchRow = document.getElementById('toggle-row-chk-crunch');
   if (crunchRow) crunchRow.style.display = ((game.infinity && game.infinity.crunchCount) >= 1) ? 'block' : 'none';
+
+  const challengeRow = document.getElementById('toggle-row-chk-challenge');
+  if (challengeRow) challengeRow.style.display = ((game.stats && game.stats.totalChallengesStarted) >= 1) ? 'block' : 'none';
 }
 
 // いずれかのAcceleratorでオートバイヤーが解放済みかどうか（自動化タブの表示条件）
@@ -3044,7 +3550,7 @@ function rebuildDynamicUI() {
   ['achievements-list', 'challenge-list', 'infinity-upgrades-container',
    'accel-stats-list', 'auto-accel-list', 'setting-toggles-container',
    'glitch-toggle-container', 'audio-toggle-container', 'theme-grid',
-   'auto-linac-toggle-container'].forEach(id => {
+   'auto-linac-toggle-container', 'research-grid'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.innerHTML = ''; el.dataset.initialized = ''; }
   });
@@ -3058,6 +3564,8 @@ function rebuildDynamicUI() {
   if (typeof updateTimeFluxTab === 'function') updateTimeFluxTab();
   if (typeof updateBreakInfinityTab === 'function') updateBreakInfinityTab();
   if (typeof updateBreakInfinityUnlockSection === 'function') updateBreakInfinityUnlockSection();
+  if (typeof updateResearchTab === 'function') updateResearchTab();
+  if (typeof updateResearchSectionVisibility === 'function') updateResearchSectionVisibility();
   if (typeof updateUI === 'function') updateUI(currentPPSValue);
   if (typeof updateNewsText === 'function') updateNewsText();
 }
@@ -3095,6 +3603,8 @@ function init() {
   updateShopTab();
   updateChallengeTab();
   updateChallengeSectionVisibility();
+  if (typeof updateResearchTab === 'function') updateResearchTab();
+  if (typeof updateResearchSectionVisibility === 'function') updateResearchSectionVisibility();
   initBreakInfinity();
   if (typeof AudioSystem !== 'undefined') AudioSystem.initOnFirstInteraction();
 
@@ -3150,6 +3660,13 @@ function proceedPastBoot() {
 document.addEventListener('DOMContentLoaded', init);
 
 // ページを離れる際にできるだけ正確な終了時刻を保存する（オフライン進行の計算精度のため）
+window.addEventListener('resize', () => {
+  const researchTab = document.getElementById('tab-research');
+  if (researchTab && researchTab.classList.contains('active') && typeof drawResearchConnectors === 'function') {
+    drawResearchConnectors();
+  }
+});
+
 window.addEventListener('beforeunload', () => {
   try { saveGame(true); } catch(e) {}
 });

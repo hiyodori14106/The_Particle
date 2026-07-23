@@ -80,6 +80,17 @@
 		normalize() {
 			//SAFETY: don't try to normalize non-numbers or we infinite loop
 			if (!Number.isFinite(this.mantissa)) return this;
+			// SAFETY: a mantissa of exactly 0 represents the value 0 regardless of exponent.
+			// Without this, operations like mul() (e.g. 0 amount * a huge post-Break-Infinity
+			// multiplier) can produce {mantissa:0, exponent:416}: a "zero" that still carries
+			// a huge leftover exponent. That corrupted zero then wins any later add() against
+			// a real small value (add() just compares exponents to pick the "bigger" one),
+			// silently wiping the real value out. Forcing exponent to 0 here keeps every true
+			// zero canonical, matching fromNumber(0)'s behavior.
+			if (this.mantissa == 0) {
+				this.exponent = 0;
+				return this;
+			}
 			while (Math.abs(this.mantissa) < 1 && this.mantissa != 0)
 			{
 				this.mantissa *= 10;
@@ -1263,13 +1274,14 @@
 //     getDefaultBreakInfinityState() を呼び出すため）。
 // =========================================================
 
-// 所持IPがこの値以上でBreak Infinityを解放できる
+// 所持IPがこの値以上でBreak Infinityを解放できる（旧仕様。現在は研究P-30クリアが解放条件）
 const BREAK_INFINITY_UNLOCK_IP = 1e50;
 
 // --- Break Infinity 状態の初期値 ---
 function getDefaultBreakInfinityState() {
   return {
-    unlocked: false // Break Infinityが解放されているか（これだけで機能する）
+    unlocked: false,     // Break Infinityが解放されているか
+    postCrunchCount: 0   // Break Infinity解放後に行ったBig Crunchの回数（研究P-17の全倍率×2の元になる）
   };
 }
 
@@ -1282,11 +1294,19 @@ function ensureBreakInfinityState() {
   if (typeof game.breakInfinity.unlocked !== 'boolean') {
     game.breakInfinity.unlocked = false;
   }
+  if (typeof game.breakInfinity.postCrunchCount !== 'number' || isNaN(game.breakInfinity.postCrunchCount) || game.breakInfinity.postCrunchCount < 0) {
+    game.breakInfinity.postCrunchCount = 0;
+  }
 }
 
 // Break Infinityが解放されているか（true の場合、粒子数の上限を撤廃する）
 function isBreakInfinityActive() {
   return !!(game.breakInfinity && game.breakInfinity.unlocked);
+}
+
+// 解放条件（研究P-30のクリア）を満たしているか
+function isBreakInfinityUnlockReady() {
+  return !!(typeof isResearchDone === 'function' && isResearchDone('P30'));
 }
 
 // game.infinity.ip をDecimalとして安全に取得するヘルパー
@@ -1303,36 +1323,237 @@ function biGetIP() {
 }
 
 // --- 解放処理 ---
-// 所持IPが BREAK_INFINITY_UNLOCK_IP 以上あれば、そのIPを消費してBreak Infinityを解放する。
+// 研究「P-30」をクリアしていればBreak Infinityを解放する（IP消費は無い。IPは研究の購入時に既に消費済み）。
 function tryUnlockBreakInfinity() {
   ensureBreakInfinityState();
   if (game.breakInfinity.unlocked) return;
 
-  const currentIP = biGetIP();
-  if (currentIP.lt(BREAK_INFINITY_UNLOCK_IP)) {
+  if (!isBreakInfinityUnlockReady()) {
     if (typeof AudioSystem !== 'undefined') AudioSystem.playSE('error');
     if (typeof showModal === 'function') {
       showModal({
         title: t('bi.insufficientIpTitle'),
-        body: t('bi.insufficientIpBody', { cost: format(BREAK_INFINITY_UNLOCK_IP), have: format(currentIP) }),
+        body: t('bi.researchRequiredBody'),
         buttons: [ { label: t('common.ok'), primary: true, onClick: closeModal } ]
       });
     }
     return;
   }
 
-  game.infinity.ip = currentIP.sub(BREAK_INFINITY_UNLOCK_IP);
   game.breakInfinity.unlocked = true;
 
-  if (typeof playSE === 'function') playSE('unlock');
-  if (typeof saveGame === 'function') saveGame(true);
+  // 以下のセーブ/UI更新処理でエラーが起きても、解放演出(playBreakInfinityShatterEffect)は
+  // 必ず実行されるようにする。演出呼び出しより前で例外が飛ぶと、ここまでの処理は成功しているのに
+  // 「ボタンを押しても演出だけ出ない」という気づきにくいバグになるため、各処理を個別にtry/catchする。
+  try { if (typeof saveGame === 'function') saveGame(true); } catch (e) { console.error('[BreakInfinity] saveGame failed:', e); }
+  try { updateBreakInfinityUnlockSection(); } catch (e) { console.error('[BreakInfinity] updateBreakInfinityUnlockSection failed:', e); }
+  try { updateBreakInfinityTab(); } catch (e) { console.error('[BreakInfinity] updateBreakInfinityTab failed:', e); }
+  try {
+    if (typeof updateUI === 'function' && typeof currentPPSValue !== 'undefined') updateUI(currentPPSValue);
+  } catch (e) { console.error('[BreakInfinity] updateUI failed:', e); }
 
-  updateBreakInfinityUnlockSection();
-  updateBreakInfinityTab();
-  if (typeof updateUI === 'function' && typeof currentPPSValue !== 'undefined') updateUI(currentPPSValue);
+  try {
+    playBreakInfinityShatterEffect();
+  } catch (e) {
+    console.error('[BreakInfinity] playBreakInfinityShatterEffect failed:', e);
+  }
+}
 
-  if (typeof showNotification === 'function') {
-    showNotification(t('bi.unlockedNotifTitle'), t('bi.unlockedNotifBody'), '♾️');
+// --- 解放演出: 空間そのものにひびが入り、砕け散って向こう側の裂け目が見える ---
+// 演出全体の長さ(ms)。style.cssの .bi-overlay 系アニメーションの合計時間と一致させること。
+const BI_SHATTER_TOTAL_MS = 6400;
+const BI_TREMOR_START_MS = 1400;   // ひびが入り始める瞬間の小さな予兆振動
+const BI_SHAKE_START_MS = 1900;    // 砕け散る瞬間の大きな衝撃
+const BI_SHAKE_DURATION_MS = 700;
+
+function playBreakInfinityShatterEffect() {
+  if (typeof playSE === 'function') playSE('breakInfinity');
+
+  const overlay = document.getElementById('breakinfinity-overlay');
+
+  if (!overlay || (typeof offlineSimulating !== 'undefined' && offlineSimulating)) {
+    if (typeof showNotification === 'function') {
+      showNotification(t('bi.unlockedNotifTitle'), t('bi.unlockedNotifBody'), '♾️');
+    }
+    return;
+  }
+
+  // 無限マーク周辺に走る細かいひび（無限マークのSVG座標系 0-300 x 0-150）
+  const localSvg = document.getElementById('bi-local-cracks');
+  if (localSvg) {
+    const localCracks = generateCrackPaths(150, 75, {
+      count: 5, maxLen: 90, segments: 6, maxDepth: 2, branchChance: 0.28, angleJitter: 0.55
+    });
+    renderCracksIntoSVG(localSvg, localCracks, 1.42, 0.05);
+  }
+
+  // 画面全体、空間そのものに広がるひび
+  const spaceSvg = document.getElementById('bi-space-cracks');
+  if (spaceSvg) {
+    const w = window.innerWidth || 1280;
+    const h = window.innerHeight || 800;
+    spaceSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const cx = w / 2, cy = h / 2;
+    const maxLen = Math.max(w, h) * 0.65;
+    const spaceCracks = generateCrackPaths(cx, cy, {
+      count: 10, maxLen, segments: 9, maxDepth: 3, branchChance: 0.3, angleJitter: 0.5
+    });
+    renderCracksIntoSVG(spaceSvg, spaceCracks, 1.25, 0.07);
+  }
+
+  // 空間そのものが砕け散るガラス片（画面全体を覆うジッターグリッド）
+  buildSpaceShards(document.getElementById('bi-space-shards-container'));
+  // 無限マーク自体の破片
+  spawnBreakInfinityShards(document.getElementById('bi-shards-container'), 30);
+
+  overlay.classList.add('active');
+
+  setTimeout(() => { document.body.classList.add('screen-tremor'); }, BI_TREMOR_START_MS);
+  setTimeout(() => {
+    document.body.classList.remove('screen-tremor');
+    document.body.classList.add('screen-shake');
+  }, BI_SHAKE_START_MS);
+  setTimeout(() => { document.body.classList.remove('screen-shake'); }, BI_SHAKE_START_MS + BI_SHAKE_DURATION_MS);
+
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    ['bi-shards-container', 'bi-space-shards-container'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+    ['bi-local-cracks', 'bi-space-cracks'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+    if (typeof showNotification === 'function') {
+      showNotification(t('bi.unlockedNotifTitle'), t('bi.unlockedNotifBody'), '♾️');
+    }
+  }, BI_SHATTER_TOTAL_MS);
+}
+
+// --- リアルなひび割れをJSで生成する ---
+// 中心点(cx,cy)から複数本のひびを放射状に伸ばし、途中でジグザグに折れ曲がりながら
+// ランダムに枝分かれ(branch)させることで、本物のガラスのひびのような不規則さを出す。
+// 戻り値: [{ d: 'M x,y L x,y ...', depth: number }, ...]（depthが深いほど枝分かれの子）
+function generateCrackPaths(cx, cy, opts) {
+  const {
+    count = 6, maxLen = 100, segments = 7, maxDepth = 2,
+    branchChance = 0.25, angleJitter = 0.5, spreadJitter = 0.35
+  } = opts || {};
+
+  const paths = [];
+
+  function recurse(x, y, angle, len, depth) {
+    let curX = x, curY = y, curAngle = angle;
+    const segLen = len / segments;
+    let d = `M ${curX.toFixed(1)},${curY.toFixed(1)}`;
+    for (let s = 0; s < segments; s++) {
+      curAngle += (Math.random() * angleJitter * 2 - angleJitter);
+      curX += Math.cos(curAngle) * segLen;
+      curY += Math.sin(curAngle) * segLen;
+      d += ` L ${curX.toFixed(1)},${curY.toFixed(1)}`;
+      if (depth < maxDepth && s > segments * 0.25 && Math.random() < branchChance) {
+        const branchAngle = curAngle + (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.6);
+        recurse(curX, curY, branchAngle, len * (0.4 + Math.random() * 0.25), depth + 1);
+      }
+    }
+    paths.push({ d, depth });
+  }
+
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 * i) / count + (Math.random() * spreadJitter * 2 - spreadJitter);
+    recurse(cx, cy, angle, maxLen * (0.75 + Math.random() * 0.5), 0);
+  }
+  return paths;
+}
+
+// 生成したひびpathをSVGに差し込み、stroke-dashoffsetで「描かれていく」演出をつける
+// （子(depth>0)ほど少し遅れて描かれることで、本線→枝分かれの順に割れていくように見せる）
+function renderCracksIntoSVG(svg, cracks, baseDelay, staggerPerDepth) {
+  if (!svg) return;
+  svg.innerHTML = '';
+  cracks.forEach((c) => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', c.d);
+    path.setAttribute('class', 'crack-line' + (c.depth > 0 ? ' crack-branch' : ''));
+    svg.appendChild(path);
+    let len = 100;
+    try { len = path.getTotalLength(); } catch (e) { /* getTotalLengthが使えない環境向けフォールバック */ }
+    path.style.strokeDasharray = `${len}`;
+    path.style.strokeDashoffset = `${len}`;
+    const delay = baseDelay + c.depth * staggerPerDepth + Math.random() * 0.08;
+    path.style.transition = `stroke-dashoffset 0.22s ease-out ${delay}s`;
+    requestAnimationFrame(() => { path.style.strokeDashoffset = '0'; });
+  });
+}
+
+// 無限マークの破片を放射状にランダム生成する（CSS変数 --dx/--dy/--rot でアニメーションの飛散方向を制御）
+function spawnBreakInfinityShards(container, count) {
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const shard = document.createElement('div');
+    shard.className = 'bi-shard';
+    const angle = (Math.PI * 2 * i) / count + (Math.random() * 0.6 - 0.3);
+    const dist = 200 + Math.random() * 280;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist * 0.65;
+    const rot = Math.random() * 720 - 360;
+    const size = 8 + Math.random() * 16;
+    const delay = 1.9 + Math.random() * 0.3;
+    shard.style.setProperty('--dx', `${dx}px`);
+    shard.style.setProperty('--dy', `${dy}px`);
+    shard.style.setProperty('--rot', `${rot}deg`);
+    shard.style.width = `${size}px`;
+    shard.style.height = `${size}px`;
+    shard.style.animationDelay = `${delay}s`;
+    container.appendChild(shard);
+  }
+}
+
+// 画面全体を覆う「空間の破片」を生成する。
+// 格子の交点座標をランダムにジッターさせてから隣接セルで共有することで、
+// 割れる前は継ぎ目のない1枚の画面に見え、砕け散る瞬間に不規則なガラス片として飛散する。
+function buildSpaceShards(container) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  const cols = 8, rows = 5, jitter = 0.35;
+  const ptsX = [], ptsY = [];
+  for (let i = 0; i <= cols; i++) {
+    const base = (i / cols) * 100;
+    const jit = (i > 0 && i < cols) ? (Math.random() * 2 - 1) * jitter * (100 / cols) : 0;
+    ptsX.push(base + jit);
+  }
+  for (let j = 0; j <= rows; j++) {
+    const base = (j / rows) * 100;
+    const jit = (j > 0 && j < rows) ? (Math.random() * 2 - 1) * jitter * (100 / rows) : 0;
+    ptsY.push(base + jit);
+  }
+
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const x0 = ptsX[i], x1 = ptsX[i + 1], y0 = ptsY[j], y1 = ptsY[j + 1];
+      const shard = document.createElement('div');
+      shard.className = 'bi-vshard';
+      shard.style.clipPath = `polygon(${x0}% ${y0}%, ${x1}% ${y0}%, ${x1}% ${y1}%, ${x0}% ${y1}%)`;
+
+      const midx = (x0 + x1) / 2, midy = (y0 + y1) / 2;
+      const dx = (midx - 50) / 50, dy = (midy - 50) / 50; // -1〜1（中心からの方向）
+      const dist = 260 + Math.random() * 380;
+      const flyX = dx * dist + (Math.random() * 80 - 40);
+      const flyY = dy * dist * 0.85 + (Math.random() * 80 - 40);
+      const rot = (Math.random() * 2 - 1) * 260;
+      const distFromCenter = Math.hypot(dx, dy);
+      // 中心から遠い破片ほど少し遅れて飛び散る（ひびが外側へ伝播していく感覚を出す）
+      const delay = 1.9 + distFromCenter * 0.2 + Math.random() * 0.15;
+
+      shard.style.setProperty('--sx', `${flyX}px`);
+      shard.style.setProperty('--sy', `${flyY}px`);
+      shard.style.setProperty('--srot', `${rot}deg`);
+      shard.style.animationDelay = `${delay}s`;
+      container.appendChild(shard);
+    }
   }
 }
 
@@ -1342,9 +1563,9 @@ function updateBreakInfinityUnlockSection() {
   if (!section) return;
   ensureBreakInfinityState();
 
-  // Infinityに一度でも到達していれば目標として見せる（解放条件を満たすまではボタンを無効化）
-  const everReachedInfinity = !!(game.infinity && game.infinity.crunchCount > 0);
-  if (!everReachedInfinity && !game.breakInfinity.unlocked) {
+  // 研究タブが解放されていれば（＝チャレンジ7クリア後）目標として見せる（解放条件を満たすまではボタンを無効化）
+  const researchUnlocked = !!(typeof isResearchUnlocked === 'function' && isResearchUnlocked());
+  if (!researchUnlocked && !game.breakInfinity.unlocked) {
     section.style.display = 'none';
     return;
   }
@@ -1364,8 +1585,14 @@ function updateBreakInfinityUnlockSection() {
   } else {
     btn.style.display = 'block';
     msg.style.display = 'none';
-    btn.textContent = t('bi.unlockBtn', { cost: format(BREAK_INFINITY_UNLOCK_IP) });
-    btn.classList.toggle('disabled', currentIP.lt(BREAK_INFINITY_UNLOCK_IP));
+    const ready = isBreakInfinityUnlockReady();
+    btn.textContent = ready ? t('bi.unlockBtnReady') : t('bi.unlockBtnLocked');
+    // NOTE: 意図的に .disabled (pointer-events:none) は使わない。
+    // .disabled を付けるとクリック自体がブラウザに無視され、tryUnlockBreakInfinity() 内の
+    // 「未達成時に案内モーダルを出す」処理が一切実行されず、ユーザーからは
+    // 「ボタンを押しても何も起きない（演出も出ない）」ように見えてしまうバグの原因になっていた。
+    // 見た目だけ無効化っぽく見せつつ、クリックは通して案内モーダルを出す。
+    btn.classList.toggle('bi-locked', !ready);
   }
 }
 
@@ -1384,11 +1611,7 @@ function updateBreakInfinityTab() {
 
   const currentIP = biGetIP();
   container.innerHTML = `
-    <div style="color:#ff0055; text-align:center; border:1px solid #ff0055; padding:15px;">
-      <strong>${t('bi.unlockedMsg1')}</strong><br>
-      ${t('bi.unlockedMsg2')}
-    </div>
-    <div class="stat-row" style="margin-top:15px;">
+    <div class="stat-row" style="margin-top:5px;">
       <span class="stat-label">${t('bi.currentIP')}</span>
       <span class="stat-val" id="bi-current-ip2">0</span>
     </div>

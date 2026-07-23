@@ -66,6 +66,34 @@ const AudioSystem = (() => {
     osc.stop(t0 + duration + 0.02);
   }
 
+  // ノイズバースト（ガラスが割れるようなクラック/破砕音に使う）
+  function noiseBurst({ duration = 0.2, filterFreq = 3000, filterQ = 1, filterType = 'bandpass', gain = 0.3, delay = 0 } = {}) {
+    const c = ensureContext();
+    if (!c) return;
+    const s = getSettings();
+    if (s.sfxEnabled === false) return;
+    applyVolumes();
+    const t0 = c.currentTime + delay;
+    const bufferSize = Math.max(1, Math.floor(c.sampleRate * duration));
+    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = c.createBufferSource();
+    noise.buffer = buffer;
+    const filter = c.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(filterFreq, t0);
+    filter.Q.value = filterQ;
+    const g = c.createGain();
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    noise.connect(filter);
+    filter.connect(g);
+    g.connect(sfxGain);
+    noise.start(t0);
+    noise.stop(t0 + duration + 0.02);
+  }
+
   // 効果音の種類ごとの定義（今後増やしやすいようオブジェクトで管理）
   const SFX = {
     click:       () => beep({ freq: 600, duration: 0.05, type: 'square', gain: 0.15 }),
@@ -78,7 +106,28 @@ const AudioSystem = (() => {
     shift:       () => { beep({ freq: 200, duration: 0.3, gain: 0.25 }); beep({ freq: 700, duration: 0.35, gain: 0.2, delay: 0.1 }); },
     crunch:      () => { [0, 0.1, 0.2, 0.3].forEach((d, i) => beep({ freq: 110 - i * 10, duration: 0.4, type: 'sawtooth', gain: 0.22, delay: d })); },
     challenge:   () => { beep({ freq: 440, duration: 0.15, gain: 0.25 }); beep({ freq: 550, duration: 0.15, gain: 0.25, delay: 0.12 }); beep({ freq: 660, duration: 0.2, gain: 0.25, delay: 0.24 }); },
-    unlock:      () => { beep({ freq: 392, duration: 0.15, gain: 0.25 }); beep({ freq: 587, duration: 0.25, gain: 0.25, delay: 0.13 }); }
+    unlock:      () => { beep({ freq: 392, duration: 0.15, gain: 0.25 }); beep({ freq: 587, duration: 0.25, gain: 0.25, delay: 0.13 }); },
+    // Break Infinity解放: 無限マークが出現→緊張感の高まり→ひび割れ→破砕→きらめく余韻
+    breakInfinity: () => {
+      // 出現時の低い唸り（無限マークが形作られる)
+      beep({ freq: 90,  duration: 1.5, type: 'sine',     gain: 0.18, delay: 0 });
+      beep({ freq: 180, duration: 1.4, type: 'triangle', gain: 0.12, delay: 0.1 });
+      // 緊張感の高まる上昇音（ひびが入り始める）
+      beep({ freq: 220, duration: 0.7, type: 'sawtooth', gain: 0.14, delay: 1.1 });
+      beep({ freq: 349, duration: 0.5, type: 'sawtooth', gain: 0.12, delay: 1.35 });
+      // ひび割れる高音のクラック音（複数の短いノイズバースト）
+      [1.6, 1.66, 1.72, 1.78, 1.84, 1.9].forEach((d, i) => {
+        noiseBurst({ duration: 0.07, filterFreq: 3800 + i * 700, filterQ: 6, gain: 0.28, delay: d });
+        beep({ freq: 1400 + i * 250, duration: 0.05, type: 'square', gain: 0.08, delay: d });
+      });
+      // 砕け散る瞬間: 低音の衝撃＋広帯域ノイズの爆発
+      noiseBurst({ duration: 0.6, filterFreq: 1500, filterQ: 0.6, filterType: 'lowpass', gain: 0.4, delay: 1.95 });
+      noiseBurst({ duration: 0.35, filterFreq: 6000, filterQ: 0.8, filterType: 'highpass', gain: 0.3, delay: 1.95 });
+      beep({ freq: 55, duration: 1.1, type: 'sine', gain: 0.45, delay: 1.95 });
+      beep({ freq: 38, duration: 1.3, type: 'sine', gain: 0.35, delay: 2.0 });
+      // 解放後、きらめくアルペジオで余韻を残す
+      [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => beep({ freq: f, duration: 0.45, type: 'sine', gain: 0.18, delay: 2.35 + i * 0.13 }));
+    }
   };
 
   function playSE(name) {

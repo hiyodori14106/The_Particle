@@ -39,14 +39,17 @@ function ensureTimeFluxState() {
 }
 
 // TFアップグレードの回数に応じた現在の上限（秒）
+// 研究P-19: TF基礎上限が×2になる
 function getTFMaxSeconds() {
   ensureTimeFluxState();
-  return TF_BASE_MAX_SECONDS * Math.pow(2, game.timeFlux.capLevel);
+  const baseMult = (typeof getResearchTFBaseMaxMult === 'function') ? getResearchTFBaseMaxMult() : 1;
+  return TF_BASE_MAX_SECONDS * baseMult * Math.pow(2, game.timeFlux.capLevel);
 }
 
-// 次のTFアップグレードに必要な消費量（現在の上限の2/3）
+// 次のTFアップグレードに必要な消費量（現在の上限の2/3。研究P-6でコスト-10%）
 function getTFCapUpgradeCost() {
-  return getTFMaxSeconds() * TF_CAP_UPGRADE_COST_RATIO;
+  const costMult = (typeof getResearchTFCapUpgradeCostMult === 'function') ? getResearchTFCapUpgradeCostMult() : 1;
+  return getTFMaxSeconds() * TF_CAP_UPGRADE_COST_RATIO * costMult;
 }
 
 function canBuyTFCapUpgrade() {
@@ -62,7 +65,6 @@ function buyTFCapUpgrade() {
   game.timeFlux.time -= cost;
   game.timeFlux.capLevel++;
   if (typeof playSE === 'function') playSE('buy');
-  if (typeof saveGame === 'function') saveGame(true);
   updateTimeFluxTab();
   if (typeof showNotification === 'function') {
     showNotification(t('notif.tfUpgradeTitle'), t('notif.tfUpgradeMsg', { max: formatTime(getTFMaxSeconds()) }), '⏱️');
@@ -79,8 +81,10 @@ function checkAndShowOfflineProgress() {
   if (elapsed > OFFLINE_MAX_SECONDS) elapsed = OFFLINE_MAX_SECONDS;
 
   // Time Flux獲得: オフラインだった時間と同じだけ（上限1時間、超過分は切り捨て）
+  // 研究P-11/P-12: TFが溜まる速度が+10%ずつ（最大+20%）
   if (elapsed > 0) {
-    game.timeFlux.time = Math.min(getTFMaxSeconds(), game.timeFlux.time + elapsed);
+    const tfGainMult = (typeof getResearchTFGainMult === 'function') ? getResearchTFGainMult() : 1;
+    game.timeFlux.time = Math.min(getTFMaxSeconds(), game.timeFlux.time + elapsed * tfGainMult);
   }
 
   if (elapsed < OFFLINE_IGNORE_THRESHOLD) {
@@ -186,6 +190,12 @@ function offlineStep() {
 }
 
 // --- 「スキップ」: 残りを瞬時に一括計算する ---
+// dtを300秒単位でまとめて処理すると、その300秒の間に本来複数回発生するはずの
+// Big Crunch（particlesが上限に達した瞬間にリセット）が1回分しかカウントされず、
+// オフライン中のBig Crunch回数・獲得IPが実際より大幅に少なくなってしまう。
+// simulateTick先頭のクランチ判定はdt処理前のparticlesを見て行われるため、
+// 「開始」時のアニメーション（dt上限1秒）と同じ粒度に揃えて、
+// スキップ時も本来発生するはずの回数分だけBig Crunchが発生するようにする。
 function skipOfflineSimulation() {
   if (!offlineRunning) {
     offlineSimulating = true;
@@ -194,7 +204,7 @@ function skipOfflineSimulation() {
   if (offlineAnimFrame) { cancelAnimationFrame(offlineAnimFrame); offlineAnimFrame = null; }
 
   while (offlineSimulatedSeconds < offlineTotalSeconds) {
-    const dt = Math.min(300, offlineTotalSeconds - offlineSimulatedSeconds);
+    const dt = Math.min(1, offlineTotalSeconds - offlineSimulatedSeconds);
     simulateTick(dt);
     offlineSimulatedSeconds += dt;
   }

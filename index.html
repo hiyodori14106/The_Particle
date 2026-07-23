@@ -40,6 +40,25 @@
     </div>
   </div>
 
+  <!-- Break Infinity 解放演出: 空間そのものにひびが入り、砕け散って向こう側の裂け目が見える -->
+  <div id="breakinfinity-overlay" class="bi-overlay">
+    <div class="bi-void-reveal"></div>
+    <svg id="bi-space-cracks" class="bi-space-cracks" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="bi-space-shards" id="bi-space-shards-container"></div>
+
+    <div class="bi-glow"></div>
+    <svg class="bi-infinity-svg" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+      <path class="bi-infinity-path" d="M75,75 C75,42 110,42 150,75 C190,108 225,108 225,75 C225,42 190,42 150,75 C110,108 75,108 75,75 Z"/>
+    </svg>
+    <svg id="bi-local-cracks" class="bi-local-cracks" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="bi-shards" id="bi-shards-container"></div>
+    <div class="bi-flash"></div>
+    <div class="bi-message">
+      <h1 data-i18n="bi.unlockedMsg1">LIMIT BROKEN</h1>
+      <p data-i18n="bi.unlockedMsg2">上限解除済み・1.78e308を超えて進行できます</p>
+    </div>
+  </div>
+
   <!-- ゲーム内モーダル（alert/confirmの代替） -->
   <div id="game-modal-overlay" class="modal-overlay">
     <div class="modal-box">
@@ -94,6 +113,8 @@
         <button class="tab-btn" id="tab-btn-infinity" data-i18n="nav.infinity" onclick="switchTab('infinity', this)" style="display:none; color:#d500f9; border-color:#d500f9;">∞ INFINITY</button>
         <!-- チャレンジタブ（Big Crunch 5回以上で解放） -->
         <button class="tab-btn" id="tab-btn-challenge" data-i18n="nav.challenge" onclick="switchTab('challenge', this)" style="display:none;">チャレンジ</button>
+        <!-- 研究タブ（チャレンジ7クリアで解放） -->
+        <button class="tab-btn" id="tab-btn-research" data-i18n="nav.research" onclick="switchTab('research', this)" style="display:none; color:#ff2fd0; border-color:#ff2fd0;">研究</button>
         <button class="tab-btn" id="tab-btn-automation" data-i18n="nav.automation" onclick="switchTab('automation', this)" style="display:none;">自動化</button>
         <button class="tab-btn" data-i18n="nav.settings" onclick="switchTab('settings', this)">設定</button>
         <!-- チートタブ（コンソールの秘密コマンドで解放されるまで非表示） -->
@@ -168,8 +189,12 @@
           <span id="stat-time" class="stat-val">00:00:00</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label" data-i18n="stats.totalPlaytime">総プレイ時間(全リセット含む)</span>
+          <span class="stat-label" data-i18n="stats.totalPlaytime">総経過時間</span>
           <span id="stat-total-playtime" class="stat-val">00:00:00</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label" data-i18n="stats.uncorrectedPlaytime">未補正プレイ時間</span>
+          <span id="stat-uncorrected-playtime" class="stat-val">00:00:00</span>
         </div>
         <div class="stat-row">
           <span class="stat-label" data-i18n="stats.totalProduced">総粒子生産量</span>
@@ -409,7 +434,7 @@
               <span class="stat-val" id="bi-unlock-ip-display">0</span>
             </div>
             <button id="btn-break-infinity-unlock" class="ui-btn" style="border-color:#ff0055; color:#ff0055; margin-top:10px;" onclick="tryUnlockBreakInfinity()">
-              上限を解除 (必要: 1.00e50 IP)
+              上限を解除（研究P-30が必要）
             </button>
             <div id="break-infinity-unlocked-msg" style="display:none; color:#ff0055; text-align:center; border:1px solid #ff0055; padding:10px;">
               <strong data-i18n="bi.unlockedMsg1">LIMIT BROKEN</strong><br>
@@ -427,6 +452,21 @@
       <section id="tab-challenge" class="sidebar-content screen-page">
         <h3 data-i18n="challenge.header">チャレンジ</h3>
         <div id="challenge-list"><!-- JSで生成されます --></div>
+      </section>
+
+      <section id="tab-research" class="sidebar-content screen-page">
+        <h3 data-i18n="research.header">研究</h3>
+        <p style="font-size:0.8rem; color:#aaa; margin-bottom:10px;" data-i18n="research.desc">
+          チャレンジ7クリアで解放。IPを消費してノードを研究し、恒久的な強化を得る。依存関係を満たしたノードのみ研究できる。
+        </p>
+        <div class="stat-row">
+          <span class="stat-label" data-i18n="research.currentIP">所持 IP</span>
+          <span class="stat-val" id="research-ip-display">0</span>
+        </div>
+        <div id="research-tree-wrap">
+          <svg id="research-lines"></svg>
+          <div id="research-grid"><!-- JSで生成されます --></div>
+        </div>
       </section>
 
     </div>
