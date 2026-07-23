@@ -3612,7 +3612,7 @@ function init() {
   finishBootSequence(isFirstLaunch);
 }
 
-const BOOT_SPLASH_MIN_MS = 1900;  // ロゴ演出を最低これだけ見せてから消す
+const BOOT_SPLASH_MIN_MS = 3200;  // ロゴ演出を最低これだけ見せてから消す（タイトルコール分を含む）
 const BOOT_SPLASH_FADE_MS = 700;  // フェードアウトのtransition時間（CSS側と合わせる）
 
 function finishBootSequence(isFirstLaunch) {
