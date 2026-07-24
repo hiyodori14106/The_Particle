@@ -1535,11 +1535,12 @@ function getInitialState() {
 let game = getInitialState();
 protectParticlesField(game);
 let isCrunching = false;
-// 直近でBig Crunchが発生した時刻。演出OFF時、生産力が非常に高いと
-// 毎ティックBig Crunchが発生し続けて無限ループ状態になり得るため、
-// 実際に発生してから最低BIG_CRUNCH_MIN_INTERVAL_MS(10秒)経つまでは
-// 次のBig Crunchを発生させないようにする（演出ONの場合も同様に適用）。
-let lastCrunchTime = 0;
+// 直近でBig Crunch演出（オーバーレイ）を表示した時刻。
+// Big Crunch自体（IP計算・粒子リセット）は毎回普通に発生させるが、
+// 演出は短時間で連続表示されるとループしたように見えてしまうため、
+// 前回の演出表示からBIG_CRUNCH_MIN_INTERVAL_MS(10秒)経つまでは
+// 演出をスキップし、即座にリセットだけ行う（演出OFF時と同じ扱いにする）。
+let lastCrunchAnimTime = 0;
 const BIG_CRUNCH_MIN_INTERVAL_MS = 10000;
 let currentPPSValue = 0; // 統計画面「現在のPPS」表示用キャッシュ
 let offlineSimulating = false; // オフライン進行の一括シミュレーション中はtrue（通知・重いDOM更新を抑制する）
@@ -2813,9 +2814,6 @@ function updateGlitchEffect() {
 // --- ビッグ・クランチ ---
 function triggerBigCrunch() {
   if (isCrunching) return;
-  const now = Date.now();
-  if (lastCrunchTime && (now - lastCrunchTime) < BIG_CRUNCH_MIN_INTERVAL_MS) return;
-  lastCrunchTime = now;
   const startTime = (game.stats && game.stats.startTime) ? game.stats.startTime : Date.now();
   const currentTime = Date.now() - startTime;
   
@@ -2867,11 +2865,16 @@ function triggerBigCrunch() {
   
   playSE('crunch');
 
-  if (game.settings.skipCrunchAnim || offlineSimulating) {
+  const now = Date.now();
+  const canShowAnim = !(game.settings.skipCrunchAnim || offlineSimulating) &&
+    (!lastCrunchAnimTime || (now - lastCrunchAnimTime) >= BIG_CRUNCH_MIN_INTERVAL_MS);
+
+  if (!canShowAnim) {
     performInfinityReset();
     return; 
   }
 
+  lastCrunchAnimTime = now;
   isCrunching = true;
   const overlay = document.getElementById('crunch-overlay');
   if(overlay) overlay.classList.add('active');
