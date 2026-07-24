@@ -1541,7 +1541,7 @@ let isCrunching = false;
 // 前回の演出表示からBIG_CRUNCH_MIN_INTERVAL_MS(10秒)経つまでは
 // 演出をスキップし、即座にリセットだけ行う（演出OFF時と同じ扱いにする）。
 let lastCrunchAnimTime = 0;
-const BIG_CRUNCH_MIN_INTERVAL_MS = 10000;
+const BIG_CRUNCH_MIN_INTERVAL_MS = 30000;
 let currentPPSValue = 0; // 統計画面「現在のPPS」表示用キャッシュ
 let offlineSimulating = false; // オフライン進行の一括シミュレーション中はtrue（通知・重いDOM更新を抑制する）
 let suppressUnloadSave = false; // ハードリセット/インポート直後のreload時に、古いgameをbeforeunloadで再セーブしてしまうのを防ぐ
