@@ -96,6 +96,21 @@
     </div>
   </div>
 
+  <!-- デイリーボーナス受け取りオーバーレイ -->
+  <div id="daily-bonus-overlay" class="modal-overlay">
+    <div class="modal-box daily-bonus-box">
+      <h3 class="modal-title" data-i18n="daily.overlayTitle">デイリーボーナス</h3>
+      <div class="daily-bonus-day-badge">
+        <span data-i18n="daily.dayLabel">DAY</span>
+        <span id="daily-bonus-day-display">1</span>
+      </div>
+      <div id="daily-bonus-reward-display" class="daily-bonus-reward-display">TF +5分</div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="ui-btn primary" style="width:100%;" onclick="claimDailyBonus()" data-i18n="daily.claimBtn">受け取る</button>
+      </div>
+    </div>
+  </div>
+
   <!-- =========================================
      メインレイアウト
      サイドバーは廃止し、画面全体を切り替えるナビゲーション方式に変更
@@ -109,6 +124,7 @@
         <button class="tab-btn" data-i18n="nav.stats" onclick="switchTab('stats', this)">統計</button>
         <button class="tab-btn" data-i18n="nav.achievements" onclick="switchTab('achievements', this)">実績</button>
         <button class="tab-btn" data-i18n="nav.shop" onclick="switchTab('shop', this)">ショップ</button>
+        <button class="tab-btn" data-i18n="nav.daily" onclick="switchTab('daily', this)">デイリー<span id="daily-nav-badge" class="nav-badge" style="display:none;"></span></button>
         <button class="tab-btn" data-i18n="nav.timeflux" onclick="switchTab('timeflux', this)">Time Flux</button>
         <!-- Infinityタブ（初期は非表示） -->
         <button class="tab-btn" id="tab-btn-infinity" data-i18n="nav.infinity" onclick="switchTab('infinity', this)" style="display:none; color:#d500f9; border-color:#d500f9;">∞ INFINITY</button>
@@ -266,10 +282,31 @@
           <p><span data-i18n="shop.apLabel">所持 AP:</span> <span id="shop-ap-display" style="color:var(--color-gold); font-weight:bold; font-size:1.2rem;">0</span></p>
         </div>
         <div id="shop-items-container">
-          <h4 style="margin:20px 0 4px 0; color:#ccc;" data-i18n="shop.themeHeader">テーマ</h4>
+          <h4 style="margin:20px 0 4px 0; color:#ccc;" data-i18n="shop.boostHeader">APブースト</h4>
+          <p style="font-size:0.75rem; color:#888; margin:0 0 4px 0;" data-i18n="shop.boostDesc">APを消費して、一定時間だけ効果が乗算ではなく累乗(^)される強力なブーストを発動できます</p>
+          <div id="boost-grid" class="boost-grid"><!-- JSで生成されます --></div>
+
+          <h4 style="margin:24px 0 4px 0; color:#ccc;" data-i18n="shop.themeHeader">テーマ</h4>
           <p style="font-size:0.75rem; color:#888; margin:0 0 4px 0;" data-i18n="shop.themeDesc">APを消費して画面のテーマカラーを変更できます</p>
           <div id="theme-grid" class="theme-grid"><!-- JSで生成されます --></div>
         </div>
+      </section>
+
+      <!-- デイリーボーナス画面 -->
+      <section id="tab-daily" class="sidebar-content screen-page">
+        <h3 data-i18n="daily.header">デイリーボーナス</h3>
+        <div class="inf-header-info" style="border-color:var(--color-gold);">
+          <p data-i18n="daily.streakLabel">連続ログイン日数</p>
+          <p style="font-size:1.4rem; margin:4px 0 0 0;">
+            <span id="daily-streak-display" style="color:var(--color-gold); font-weight:bold;">0</span> / 100
+          </p>
+        </div>
+        <div id="daily-claim-section" style="margin:14px 0; display:none;">
+          <p id="daily-claim-desc" style="font-size:0.85rem; color:#ccc; text-align:center; margin-bottom:8px;"></p>
+          <button id="daily-claim-btn" class="ui-btn primary" style="width:100%;" onclick="claimDailyBonus()" data-i18n="daily.claimBtn">受け取る</button>
+        </div>
+        <p id="daily-next-desc" style="font-size:0.78rem; color:#888; text-align:center; margin:10px 0;"></p>
+        <div id="daily-bonus-list" class="daily-grid"><!-- JSで生成されます --></div>
       </section>
 
       <!-- Time Flux画面 -->

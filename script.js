@@ -70,6 +70,15 @@ function mulSafe(...values) {
   return values.reduce((acc, v) => toDecimal(acc).mul(v), new Decimal(1));
 }
 
+// 値をexponent乗する。numberでオーバーフローしなければnumberのまま、
+// 桁が巨大になる場合はDecimalへ昇格して正確に計算する（APブーストの^指数適用で使用）。
+function powSafe(value, exponent) {
+  if (value instanceof Decimal) return value.pow(exponent);
+  const result = Math.pow(value, exponent);
+  if (isFinite(result)) return result;
+  return toDecimal(value).pow(exponent);
+}
+
 // セーブから復元したAccelerator等のフィールド（amount/production）を
 // number/Decimalどちらでも正しい型に復元する。
 // JSON化されたDecimalは文字列（例: "1.23e350"）または{mantissa,exponent}になっているため、
@@ -160,8 +169,8 @@ function makeMkPowerUpgrade(id, targetGen) {
     descKey: 'infUpgrade.mkDesc', descVars: { n: targetGen + 1 },
     baseCost: 1,
     leveled: true,
-    effect: (game) => Math.pow(10, getUpgradeLevel(id)),
-    nextEffect: (game) => Math.pow(10, getUpgradeLevel(id) + 1),
+    effect: (game) => Math.pow(10, getUpgradeLevel(id)) * ((typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1),
+    nextEffect: (game) => Math.pow(10, getUpgradeLevel(id) + 1) * ((typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1),
     formatEffect: (val) => `x${format(val)}`
   };
 }
@@ -178,7 +187,8 @@ function makeCrunchPairUpgrade(id, targetGens, cost) {
     leveled: false,
     effect: (game) => {
       const crunchCount = (game.infinity && game.infinity.crunchCount) ? game.infinity.crunchCount : 0;
-      return 1 + crunchCount * CRUNCH_PAIR_MULT_PER_COUNT;
+      const achMult = (typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1;
+      return (1 + crunchCount * CRUNCH_PAIR_MULT_PER_COUNT) * achMult;
     },
     formatEffect: (val) => `x${format(val)}`
   };
@@ -197,7 +207,8 @@ const INF_UPGRADES = [
     leveled: false,
     effect: (game) => {
       const totalSec = (game.stats.totalTimePlayed || 0);
-      return Math.max(1, 1 + Math.log10(totalSec + 10) * 0.5);
+      const achMult = (typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1;
+      return Math.max(1, 1 + Math.log10(totalSec + 10) * 0.5) * achMult;
     },
     formatEffect: (val) => `x${format(val)}`
   },
@@ -215,8 +226,8 @@ const INF_UPGRADES = [
     descKey: 'infUpgrade.ipDoubleDesc',
     baseCost: 2,
     leveled: true,
-    effect: (game) => Math.pow(2, getUpgradeLevel(9)),
-    nextEffect: (game) => Math.pow(2, getUpgradeLevel(9) + 1),
+    effect: (game) => Math.pow(2, getUpgradeLevel(9)) * ((typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1),
+    nextEffect: (game) => Math.pow(2, getUpgradeLevel(9) + 1) * ((typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1),
     formatEffect: (val) => `${format(val)} IP`
   },
   makeCrunchPairUpgrade(10, [3, 4], 2), // Mk.4 & Mk.5
@@ -229,8 +240,8 @@ const INF_UPGRADES = [
     descKey: 'infUpgrade.shiftBoostDesc',
     baseCost: 3,
     leveled: true,
-    effect: (game) => SHIFT_INCREMENT_BASE + getUpgradeLevel(SHIFT_INCREMENT_ID) * 0.2,
-    nextEffect: (game) => SHIFT_INCREMENT_BASE + (getUpgradeLevel(SHIFT_INCREMENT_ID) + 1) * 0.2,
+    effect: (game) => (SHIFT_INCREMENT_BASE + getUpgradeLevel(SHIFT_INCREMENT_ID) * 0.2) * ((typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1),
+    nextEffect: (game) => (SHIFT_INCREMENT_BASE + (getUpgradeLevel(SHIFT_INCREMENT_ID) + 1) * 0.2) * ((typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1),
     formatEffect: (val) => `+${format(val)}`
   }
 ];
@@ -403,6 +414,119 @@ const ACHIEVEMENTS_BASE = [
   }
 ];
 
+// --- Infinity Upgrade購入回数実績 ---
+// 表（購入回数・実績名・AP）だけを追加すれば実績が増やせる構造。
+const INF_UPGRADE_COUNT_MILESTONES = [
+  { count: 1,   title: '初めての強化',       points: 10 },
+  { count: 5,   title: '強化開始',           points: 12 },
+  { count: 10,  title: '研究者',             points: 15 },
+  { count: 25,  title: '技術者',             points: 20 },
+  { count: 50,  title: '開発主任',           points: 25 },
+  { count: 100, title: 'Infinity博士',       points: 35 },
+  { count: 250, title: 'Infinityエンジニア', points: 75 },
+  { count: 500, title: 'Infinityマスター',   points: 100 }
+];
+
+const INF_UPGRADE_COUNT_ACHIEVEMENTS = INF_UPGRADE_COUNT_MILESTONES.map((m, i) => ({
+  id: `infUpgradeCount_${m.count}`,
+  titleKey: `ach.infUpgCount${i}.title`,
+  descKey: 'ach.infUpgCount.desc',
+  descVars: { count: m.count },
+  icon: '🔧',
+  points: m.points,
+  effectKey: 'ach.effect.infUpgradeCountMult',
+  check: (game) => (game.stats.totalInfUpgradesPurchased || 0) >= m.count
+}));
+
+// --- Mk.N強化 Lv10到達実績（Mk.1〜Mk.8） ---
+const MK_LV10_ACHIEVEMENTS = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+  id: `mkLv10_${n}`,
+  titleKey: 'ach.mkLv10.title',
+  titleVars: { n },
+  descKey: 'ach.mkLv10.desc',
+  descVars: { n },
+  icon: '💯',
+  points: 15,
+  effectKey: 'ach.effect.mkLv10',
+  effectVars: { n },
+  check: (game) => getUpgradeLevel(n) >= 10
+}));
+
+// --- その他のInfinity Upgrade関連実績 ---
+const INF_UPGRADE_MISC_ACHIEVEMENTS = [
+  {
+    id: 'allMkLv10',
+    titleKey: 'ach.allMkLv10.title',
+    descKey: 'ach.allMkLv10.desc',
+    icon: '🌟',
+    points: 50,
+    effectKey: 'ach.effect.allMkLv10',
+    check: (game) => [1, 2, 3, 4, 5, 6, 7, 8].every(n => getUpgradeLevel(n) >= 10)
+  },
+  {
+    id: 'ipDoubleLv10',
+    titleKey: 'ach.ipDoubleLv10.title',
+    descKey: 'ach.ipDoubleLv10.desc',
+    icon: '💰',
+    points: 20,
+    check: (game) => getUpgradeLevel(9) >= 10
+  },
+  {
+    id: 'timeDilationBought',
+    titleKey: 'ach.timeDilationBought.title',
+    descKey: 'ach.timeDilationBought.desc',
+    icon: '⏳',
+    points: 15,
+    check: (game) => hasUpgrade(0)
+  },
+  {
+    id: 'fullUpgrade',
+    titleKey: 'ach.fullUpgrade.title',
+    descKey: 'ach.fullUpgrade.desc',
+    icon: '🏅',
+    points: 50,
+    effectKey: 'ach.effect.fullUpgrade',
+    check: (game) => INF_UPGRADES.every(up => up.leveled ? getUpgradeLevel(up.id) >= 1 : hasUpgrade(up.id))
+  },
+  // Infinity Upgradeをすべて最大まで購入（レベル制は上限レベル、単発購入は購入済み）した実績
+  {
+    id: 'allUpgradesMaxed',
+    titleKey: 'ach.allUpgradesMaxed.title',
+    descKey: 'ach.allUpgradesMaxed.desc',
+    icon: '💎',
+    points: 100,
+    effectKey: 'ach.effect.allUpgradesMaxed',
+    check: (game) => INF_UPGRADES.every(up => up.leveled ? getUpgradeLevel(up.id) >= getUpgradeMaxLevel(up.id) : hasUpgrade(up.id))
+  }
+];
+
+// --- Big Crunch回数実績 ---
+// 表（回数・実績名・AP）だけを追加すれば実績が増やせる構造。
+const CRUNCH_COUNT_MILESTONES = [
+  { count: 5,     title: '宇宙の再構築',      points: 12 },
+  { count: 10,    title: 'Crunch研究員',      points: 14 },
+  { count: 25,    title: 'Crunch常連',        points: 16 },
+  { count: 50,    title: '無限への挑戦',      points: 18 },
+  { count: 100,   title: 'Crunchマスター',    points: 20 },
+  { count: 250,   title: '次元崩壊',          points: 25 },
+  { count: 500,   title: 'Infinite Crusher',  points: 30 },
+  { count: 1000,  title: 'Infinity Veteran',  points: 40 },
+  { count: 2500,  title: '無限の支配者',      points: 50 },
+  { count: 5000,  title: 'Beyond Infinity',   points: 75 },
+  { count: 10000, title: 'Crunch Legend',     points: 100 }
+];
+
+const CRUNCH_COUNT_ACHIEVEMENTS = CRUNCH_COUNT_MILESTONES.map((m, i) => ({
+  id: `crunchCount_${m.count}`,
+  titleKey: `ach.crunchCount${i}.title`,
+  descKey: 'ach.crunchCount.desc',
+  descVars: { count: m.count },
+  icon: '💥',
+  points: m.points,
+  effectKey: 'ach.effect.crunchIPMult',
+  check: (game) => ((game.infinity && game.infinity.crunchCount) || 0) >= m.count
+}));
+
 // --- 粒子数マイルストーン実績 ---
 // 表（しきい値・実績名）だけを追加すれば実績が増やせる構造。
 const PARTICLE_MILESTONES = [
@@ -446,10 +570,19 @@ const PARTICLE_ACHIEVEMENTS = PARTICLE_MILESTONES.map((m, i) => ({
   descVars: { label: m.label },
   icon: '✨',
   points: 10,
+  // 1e10〜1e300の粒子到達実績のみ、全粒子生産+1%の効果を持つ（1e1到達は対象外）
+  effectKey: (m.threshold >= 1e10) ? 'ach.effect.particleMult' : undefined,
   check: (game) => toDecimal(game.particles).gte(m.threshold)
 }));
 
-const ACHIEVEMENTS = [...ACHIEVEMENTS_BASE, ...PARTICLE_ACHIEVEMENTS];
+const ACHIEVEMENTS = [
+  ...ACHIEVEMENTS_BASE,
+  ...INF_UPGRADE_COUNT_ACHIEVEMENTS,
+  ...MK_LV10_ACHIEVEMENTS,
+  ...INF_UPGRADE_MISC_ACHIEVEMENTS,
+  ...CRUNCH_COUNT_ACHIEVEMENTS,
+  ...PARTICLE_ACHIEVEMENTS
+];
 
 function getDefaultAchievements() {
   const obj = {};
@@ -670,7 +803,6 @@ function buyResearch(id) {
 // 全PPS系（P1・P9・P26）のみ: グローバル倍率チェーンに乗算される
 function getResearchGlobalMult() {
   let mult = 1;
-  if (isResearchDone('P1')) mult *= 1.1;
   if (isResearchDone('P9')) mult *= 1.5;
   if (isResearchDone('P26')) mult *= 1.3;
   return mult;
@@ -686,11 +818,12 @@ function getResearchShiftMult() {
   return 1;
 }
 
-// Big Crunch獲得IP倍率系（P14・P27）
+// Big Crunch獲得IP倍率系（P14・P27・P29）
 function getResearchIPGainMult() {
   let mult = 1;
   if (isResearchDone('P14')) mult *= 2;
   if (isResearchDone('P27')) mult *= 5;
+  if (isResearchDone('P29')) mult *= 2;
   return mult;
 }
 
@@ -737,19 +870,20 @@ function getResearchCrunchDigitDivisorMult() {
   return isResearchDone('P22') ? 0.9 : 1;
 }
 
-// Big Crunch回数ボーナス（P29: IP+1%/回・上限+100%、P30: 上限+300%に拡張）
+// Big Crunch回数ボーナス（P1: IP+1%/回・上限+1000%）
+// ※旧仕様ではP30がこのボーナスの上限を+300%に拡張していたが、
+//   上限を1000%に固定した現在はP30側のその効果が意味を失っている（要調整）。
 function getResearchCrunchCountIPMult() {
-  if (!isResearchDone('P29')) return 1;
-  const cap = isResearchDone('P30') ? 3.0 : 1.0;
+  if (!isResearchDone('P1')) return 1;
+  const cap = 10.0;
   const count = (game.infinity && game.infinity.crunchCount) || 0;
   const bonus = Math.min(cap, count * 0.01);
   return 1 + bonus;
 }
 
-// Infinity強化（レベル制）の購入コスト倍率（P15・P28）
+// Infinity強化（レベル制）の購入コスト倍率（P28）
 function getResearchInfUpgradeCostMult() {
   let mult = 1;
-  if (isResearchDone('P15')) mult *= 0.95;
   if (isResearchDone('P28')) mult *= 0.9;
   return mult;
 }
@@ -761,9 +895,59 @@ function getResearchGeneratorCostMult() {
   return mult;
 }
 
+// --- 実績による各種倍率ボーナス（研究と同じパターンで、他の計算式から参照される） ---
+// いずれも「その時点で解除済みの実績」だけから毎回計算し直すため、
+// 実績をどの順番・タイミングで取得しても、最終的な効果は解除状況だけで一意に決まる
+// （取得時に加算する等の積み上げ処理は行わない）。
+
+// 粒子到達実績（1e10〜1e300、実績1つにつき+1%）: 全粒子生産倍率
+function getAchievementParticleMult() {
+  if (!game.achievements) return 1;
+  let count = 0;
+  PARTICLE_MILESTONES.forEach((m, i) => {
+    if (m.threshold >= 1e10 && game.achievements[PARTICLE_ACHIEVEMENTS[i].id]) count++;
+  });
+  return 1 + count * 0.01;
+}
+
+// Mk.1〜Mk.8 Lv10実績を全て達成: 全Accelerator生産+25%
+function getAchievementAllMkMult() {
+  return (game.achievements && game.achievements['allMkLv10']) ? 1.25 : 1;
+}
+
+// 特定のMk.N Lv10実績: 該当Mkの生産のみ+20%
+function getAchievementMkMult(genIndex) {
+  const id = `mkLv10_${genIndex + 1}`;
+  return (game.achievements && game.achievements[id]) ? 1.2 : 1;
+}
+
+// Big Crunch回数実績（実績1つにつき+2%）: IP獲得量倍率
+function getAchievementIPGainMult() {
+  if (!game.achievements) return 1;
+  let count = 0;
+  CRUNCH_COUNT_ACHIEVEMENTS.forEach(a => { if (game.achievements[a.id]) count++; });
+  return 1 + count * 0.02;
+}
+
+// Infinity Upgrade累計購入実績（実績1つにつき+2%）＋ 全アップグレード最大化実績（+20%）:
+// Infinity Upgradeの効果そのものに乗算される倍率
+function getAchievementInfUpgradeEffectMult() {
+  if (!game.achievements) return 1;
+  let count = 0;
+  INF_UPGRADE_COUNT_ACHIEVEMENTS.forEach(a => { if (game.achievements[a.id]) count++; });
+  let mult = 1 + count * 0.02;
+  if (game.achievements['allUpgradesMaxed']) mult *= 1.2;
+  return mult;
+}
+
+// Infinity Upgrade全種類1回購入実績: Infinity Upgradeの購入コスト-5%
+function getAchievementInfUpgradeCostMult() {
+  return (game.achievements && game.achievements['fullUpgrade']) ? 0.95 : 1;
+}
+
 // レベル制Infinity強化(id指定)のレベル上限に加算されるボーナス
 // P2:Mk1-4+2 / P3:Mk5-8+2 / P10:全Mk+3 / P16:全Mk+5 / P23:全Mk+10
-// P5:IP倍率強化+2 / P8:+2 / P18:+5 / P25:+10
+// P5:IP倍率強化+2 / P8:+2 / P15:+10 / P18:+5 / P25:+10
 // P13:シフト強化+5 / P24:+10
 // P30:全アップグレード+20
 function getResearchLevelCapBonus(id) {
@@ -778,6 +962,7 @@ function getResearchLevelCapBonus(id) {
   if (id === 9) {
     if (isResearchDone('P5')) bonus += 2;
     if (isResearchDone('P8')) bonus += 2;
+    if (isResearchDone('P15')) bonus += 10;
     if (isResearchDone('P18')) bonus += 5;
     if (isResearchDone('P25')) bonus += 10;
   }
@@ -906,6 +1091,364 @@ const THEMES = [
   { id: 'neon',    nameKey: 'shop.theme.neon',    color: '#ff2fd0', rgb: '255, 47, 208', cost: 200, special: true, cssClass: 'theme-neon' },
   { id: 'space',   nameKey: 'shop.theme.space',   color: '#8fd3ff', rgb: '143, 211, 255', cost: 200, special: true, cssClass: 'theme-space' }
 ];
+
+// =========================================================
+// --- APブースト ---
+// ショップでAPを消費して購入する時限ブースト。
+// category: 'particle'（全体PPS倍率^exponent） / 'infinity'（Big Crunch獲得IP^exponent）
+// 同じcategoryのブーストは同時に1つだけ有効（新しく買うと上書きされる）。
+// =========================================================
+const BOOSTS = [
+  { id: 'particleBoost1', category: 'particle', nameKey: 'shop.boost.particleBoost1', cost: 50,  exponent: 1.05, durationSec: 300 },
+  { id: 'particleBoost2', category: 'particle', nameKey: 'shop.boost.particleBoost2', cost: 70,  exponent: 1.2,  durationSec: 180 },
+  { id: 'particleBoost3', category: 'particle', nameKey: 'shop.boost.particleBoost3', cost: 100, exponent: 1.07, durationSec: 600 },
+  { id: 'infinityBoost1', category: 'infinity', nameKey: 'shop.boost.infinityBoost1', cost: 100, exponent: 1.05, durationSec: 300 },
+  { id: 'infinityBoost2', category: 'infinity', nameKey: 'shop.boost.infinityBoost2', cost: 110, exponent: 1.2,  durationSec: 180 },
+  { id: 'infinityBoost3', category: 'infinity', nameKey: 'shop.boost.infinityBoost3', cost: 150, exponent: 1.07, durationSec: 600 }
+];
+
+function getDefaultBoostState() {
+  return {
+    particle: { id: null, exponent: 1, until: 0 },
+    infinity: { id: null, exponent: 1, until: 0 }
+  };
+}
+
+function ensureBoostState() {
+  if (!game.boosts) game.boosts = getDefaultBoostState();
+  ['particle', 'infinity'].forEach(cat => {
+    if (!game.boosts[cat] || typeof game.boosts[cat] !== 'object') game.boosts[cat] = { id: null, exponent: 1, until: 0 };
+    if (typeof game.boosts[cat].exponent !== 'number' || isNaN(game.boosts[cat].exponent)) game.boosts[cat].exponent = 1;
+    if (typeof game.boosts[cat].until !== 'number' || isNaN(game.boosts[cat].until)) game.boosts[cat].until = 0;
+    if (typeof game.boosts[cat].id !== 'string') game.boosts[cat].id = null;
+  });
+}
+
+// 指定カテゴリのブーストが現在有効かどうか
+function isBoostActive(category) {
+  ensureBoostState();
+  return game.boosts[category].until > Date.now();
+}
+
+// 指定カテゴリの現在有効な指数（無効なら1）
+function getBoostExponent(category) {
+  ensureBoostState();
+  return isBoostActive(category) ? game.boosts[category].exponent : 1;
+}
+
+// 指定カテゴリの残り秒数（無効なら0）
+function getBoostRemainingSeconds(category) {
+  ensureBoostState();
+  const remain = (game.boosts[category].until - Date.now()) / 1000;
+  return remain > 0 ? remain : 0;
+}
+
+// APブーストを購入し、即座に有効化する
+function buyBoost(id) {
+  const boost = BOOSTS.find(b => b.id === id);
+  if (!boost) return;
+  ensureBoostState();
+
+  const currentAP = (typeof game.achievementPoints === 'number') ? game.achievementPoints : 0;
+  if (currentAP < boost.cost) {
+    if (typeof playSE === 'function') playSE('error');
+    return;
+  }
+
+  game.achievementPoints = currentAP - boost.cost;
+  game.boosts[boost.category] = { id: boost.id, exponent: boost.exponent, until: Date.now() + boost.durationSec * 1000 };
+
+  if (typeof playSE === 'function') playSE('buy');
+  if (typeof saveGame === 'function') saveGame(true);
+  updateBoostGrid();
+  const apEl = document.getElementById('shop-ap-display');
+  if (apEl) apEl.textContent = format(game.achievementPoints);
+  if (typeof showNotification === 'function') {
+    showNotification(t('notif.boostBoughtTitle'), t('notif.boostBoughtMsg', { name: t(boost.nameKey) }), '⚡');
+  }
+}
+// =========================================================
+// --- デイリーボーナス ---
+// 1日1回、連続ログイン日数(1〜100日目)に応じてTime FluxとAPを付与する。
+// 「昨日」ログイン済みなら連続日数+1、そうでなければ1日目にリセットする。
+// 100日目に到達した後は、以降ずっと100日目の報酬を受け取り続ける。
+// tf: 付与するTime Flux（秒）/ ap: 付与するAP。0はその報酬が無いことを表す。
+// =========================================================
+const DAILY_BONUS_REWARDS = [
+  { tf: 300,   ap: 0 },   // 1
+  { tf: 0,     ap: 5 },   // 2
+  { tf: 600,   ap: 0 },   // 3
+  { tf: 0,     ap: 5 },   // 4
+  { tf: 900,   ap: 0 },   // 5
+  { tf: 0,     ap: 10 },  // 6
+  { tf: 1800,  ap: 20 },  // 7
+  { tf: 600,   ap: 0 },   // 8
+  { tf: 0,     ap: 5 },   // 9
+  { tf: 1200,  ap: 0 },   // 10
+  { tf: 0,     ap: 10 },  // 11
+  { tf: 1800,  ap: 0 },   // 12
+  { tf: 0,     ap: 15 },  // 13
+  { tf: 3600,  ap: 30 },  // 14
+  { tf: 1200,  ap: 0 },   // 15
+  { tf: 0,     ap: 10 },  // 16
+  { tf: 1800,  ap: 0 },   // 17
+  { tf: 0,     ap: 15 },  // 18
+  { tf: 2700,  ap: 0 },   // 19
+  { tf: 0,     ap: 20 },  // 20
+  { tf: 5400,  ap: 40 },  // 21
+  { tf: 1800,  ap: 0 },   // 22
+  { tf: 0,     ap: 15 },  // 23
+  { tf: 2700,  ap: 0 },   // 24
+  { tf: 0,     ap: 20 },  // 25
+  { tf: 3600,  ap: 0 },   // 26
+  { tf: 0,     ap: 25 },  // 27
+  { tf: 7200,  ap: 50 },  // 28
+  { tf: 2700,  ap: 0 },   // 29
+  { tf: 0,     ap: 20 },  // 30
+  { tf: 3600,  ap: 0 },   // 31
+  { tf: 0,     ap: 25 },  // 32
+  { tf: 5400,  ap: 0 },   // 33
+  { tf: 0,     ap: 30 },  // 34
+  { tf: 10800, ap: 60 },  // 35
+  { tf: 3600,  ap: 0 },   // 36
+  { tf: 0,     ap: 25 },  // 37
+  { tf: 5400,  ap: 0 },   // 38
+  { tf: 0,     ap: 30 },  // 39
+  { tf: 7200,  ap: 0 },   // 40
+  { tf: 0,     ap: 35 },  // 41
+  { tf: 14400, ap: 70 },  // 42
+  { tf: 5400,  ap: 0 },   // 43
+  { tf: 0,     ap: 30 },  // 44
+  { tf: 7200,  ap: 0 },   // 45
+  { tf: 0,     ap: 35 },  // 46
+  { tf: 10800, ap: 0 },   // 47
+  { tf: 0,     ap: 40 },  // 48
+  { tf: 18000, ap: 80 },  // 49
+  { tf: 7200,  ap: 0 },   // 50
+  { tf: 0,     ap: 35 },  // 51
+  { tf: 10800, ap: 0 },   // 52
+  { tf: 0,     ap: 40 },  // 53
+  { tf: 14400, ap: 0 },   // 54
+  { tf: 0,     ap: 45 },  // 55
+  { tf: 21600, ap: 90 },  // 56
+  { tf: 10800, ap: 0 },   // 57
+  { tf: 0,     ap: 40 },  // 58
+  { tf: 14400, ap: 0 },   // 59
+  { tf: 0,     ap: 50 },  // 60
+  { tf: 18000, ap: 0 },   // 61
+  { tf: 0,     ap: 55 },  // 62
+  { tf: 28800, ap: 100 }, // 63
+  { tf: 14400, ap: 0 },   // 64
+  { tf: 0,     ap: 45 },  // 65
+  { tf: 18000, ap: 0 },   // 66
+  { tf: 0,     ap: 55 },  // 67
+  { tf: 21600, ap: 0 },   // 68
+  { tf: 0,     ap: 60 },  // 69
+  { tf: 36000, ap: 120 }, // 70
+  { tf: 18000, ap: 0 },   // 71
+  { tf: 0,     ap: 50 },  // 72
+  { tf: 21600, ap: 0 },   // 73
+  { tf: 0,     ap: 60 },  // 74
+  { tf: 28800, ap: 0 },   // 75
+  { tf: 0,     ap: 70 },  // 76
+  { tf: 43200, ap: 140 }, // 77
+  { tf: 21600, ap: 0 },   // 78
+  { tf: 0,     ap: 60 },  // 79
+  { tf: 28800, ap: 0 },   // 80
+  { tf: 0,     ap: 70 },  // 81
+  { tf: 36000, ap: 0 },   // 82
+  { tf: 0,     ap: 80 },  // 83
+  { tf: 57600, ap: 160 }, // 84
+  { tf: 28800, ap: 0 },   // 85
+  { tf: 0,     ap: 70 },  // 86
+  { tf: 36000, ap: 0 },   // 87
+  { tf: 0,     ap: 80 },  // 88
+  { tf: 43200, ap: 0 },   // 89
+  { tf: 0,     ap: 90 },  // 90
+  { tf: 72000, ap: 180 }, // 91
+  { tf: 36000, ap: 0 },   // 92
+  { tf: 0,     ap: 80 },  // 93
+  { tf: 43200, ap: 0 },   // 94
+  { tf: 0,     ap: 90 },  // 95
+  { tf: 57600, ap: 0 },   // 96
+  { tf: 0,     ap: 100 }, // 97
+  { tf: 86400, ap: 200 }, // 98
+  { tf: 43200, ap: 0 },   // 99
+  { tf: 172800, ap: 500 } // 100
+];
+
+let dailyBonusFromBoot = false; // trueなら受け取り完了後にゲーム本編へ進む（起動時フロー用）
+
+function getDefaultDailyBonusState() {
+  return { day: 0, lastClaimDateStr: null };
+}
+
+function ensureDailyBonusState() {
+  if (!game.dailyBonus || typeof game.dailyBonus !== 'object') game.dailyBonus = getDefaultDailyBonusState();
+  if (typeof game.dailyBonus.day !== 'number' || isNaN(game.dailyBonus.day) || game.dailyBonus.day < 0) game.dailyBonus.day = 0;
+  if (typeof game.dailyBonus.lastClaimDateStr !== 'string') game.dailyBonus.lastClaimDateStr = null;
+}
+
+// 指定日数目の報酬を取得（100日目以降は100日目の報酬を返し続ける）
+function getDailyBonusReward(day) {
+  const idx = Math.min(Math.max(day, 1), DAILY_BONUS_REWARDS.length) - 1;
+  return DAILY_BONUS_REWARDS[idx];
+}
+
+function getTodayDateStr() { return getDateStrOffset(0); }
+
+function getDateStrOffset(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 今から受け取れる場合はその日数(1〜100)を、本日分を受け取り済みなら null を返す
+function computeNextDailyBonusDay() {
+  ensureDailyBonusState();
+  const todayStr = getTodayDateStr();
+  if (game.dailyBonus.lastClaimDateStr === todayStr) return null;
+  if (!game.dailyBonus.lastClaimDateStr) return 1;
+  if (game.dailyBonus.lastClaimDateStr === getDateStrOffset(-1)) {
+    return Math.min(100, game.dailyBonus.day + 1);
+  }
+  return 1; // 連続記録が途切れた
+}
+
+// 秒数を「○時間○分」のような読みやすい表記にする
+function formatDurationHuman(seconds) {
+  if (!seconds || seconds <= 0) return '';
+  const totalMin = Math.round(seconds / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0 && m > 0) return t('daily.durationBoth', { h, m });
+  if (h > 0) return t('daily.durationHour', { h });
+  return t('daily.durationMin', { m });
+}
+
+function formatDailyBonusRewardText(reward) {
+  const parts = [];
+  if (reward.tf > 0) parts.push(`TF +${formatDurationHuman(reward.tf)}`);
+  if (reward.ap > 0) parts.push(`AP +${reward.ap}`);
+  return parts.join(' / ');
+}
+
+// 起動フロー（オフライン進行チェックの後）から呼ばれる
+function checkAndShowDailyBonus() {
+  ensureDailyBonusState();
+  updateDailyBonusTab();
+  const day = computeNextDailyBonusDay();
+  if (!day) {
+    if (typeof enterMainGame === 'function') enterMainGame();
+    return;
+  }
+  dailyBonusFromBoot = true;
+  showDailyBonusOverlay(day);
+}
+
+function showDailyBonusOverlay(day) {
+  const overlay = document.getElementById('daily-bonus-overlay');
+  if (!overlay) { claimDailyBonus(); return; }
+  const reward = getDailyBonusReward(day);
+  const dayEl = document.getElementById('daily-bonus-day-display');
+  if (dayEl) dayEl.textContent = day;
+  const rewardEl = document.getElementById('daily-bonus-reward-display');
+  if (rewardEl) rewardEl.textContent = formatDailyBonusRewardText(reward);
+  overlay.classList.add('active');
+  playSE('unlock');
+}
+
+function hideDailyBonusOverlay() {
+  const overlay = document.getElementById('daily-bonus-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+// デイリーボーナスタブ・オーバーレイの「受け取る」ボタンから呼ばれる
+function claimDailyBonus() {
+  ensureDailyBonusState();
+  const day = computeNextDailyBonusDay();
+  if (!day) { hideDailyBonusOverlay(); return; }
+
+  const reward = getDailyBonusReward(day);
+  if (reward.tf > 0 && typeof ensureTimeFluxState === 'function') {
+    ensureTimeFluxState();
+    const max = (typeof getTFMaxSeconds === 'function') ? getTFMaxSeconds() : Infinity;
+    game.timeFlux.time = Math.min(max, game.timeFlux.time + reward.tf);
+  }
+  if (reward.ap > 0) {
+    if (typeof game.achievementPoints !== 'number') game.achievementPoints = 0;
+    game.achievementPoints += reward.ap;
+  }
+  game.dailyBonus.day = day;
+  game.dailyBonus.lastClaimDateStr = getTodayDateStr();
+
+  hideDailyBonusOverlay();
+  playSE('achievement');
+  showNotification(t('daily.claimedTitle'), t('daily.claimedMsg', { day, reward: formatDailyBonusRewardText(reward) }), '🎁', 'achievement');
+
+  updateDailyBonusTab();
+  if (typeof updateShopTab === 'function') updateShopTab();
+  if (typeof updateTimeFluxTab === 'function') updateTimeFluxTab();
+  if (typeof saveGame === 'function') saveGame(true);
+
+  if (dailyBonusFromBoot) {
+    dailyBonusFromBoot = false;
+    if (typeof enterMainGame === 'function') enterMainGame();
+  }
+}
+
+// デイリータブの描画（ナビバッジ・ヘッダー・受け取りボタン・100日カレンダー）
+function updateDailyBonusTab() {
+  ensureDailyBonusState();
+  const day = computeNextDailyBonusDay();
+
+  const streakEl = document.getElementById('daily-streak-display');
+  if (streakEl) streakEl.textContent = game.dailyBonus.day;
+
+  const claimSection = document.getElementById('daily-claim-section');
+  const claimDesc = document.getElementById('daily-claim-desc');
+  const nextDesc = document.getElementById('daily-next-desc');
+  if (day) {
+    const reward = getDailyBonusReward(day);
+    if (claimSection) claimSection.style.display = '';
+    if (claimDesc) claimDesc.textContent = t('daily.claimDesc', { day, reward: formatDailyBonusRewardText(reward) });
+    if (nextDesc) nextDesc.textContent = '';
+  } else {
+    if (claimSection) claimSection.style.display = 'none';
+    if (nextDesc) {
+      const nextDay = Math.min(100, game.dailyBonus.day + 1);
+      const nextReward = getDailyBonusReward(nextDay);
+      nextDesc.textContent = t('daily.nextDesc', { day: nextDay, reward: formatDailyBonusRewardText(nextReward) });
+    }
+  }
+
+  const badge = document.getElementById('daily-nav-badge');
+  if (badge) badge.style.display = day ? '' : 'none';
+
+  const list = document.getElementById('daily-bonus-list');
+  if (list && !list.dataset.initialized) {
+    list.dataset.initialized = '1';
+    DAILY_BONUS_REWARDS.forEach((reward, i) => {
+      const dayNum = i + 1;
+      const card = document.createElement('div');
+      card.className = 'daily-card';
+      card.id = `daily-card-${dayNum}`;
+      card.innerHTML = `
+        <div class="daily-card-day">${dayNum}</div>
+        <div class="daily-card-reward">${formatDailyBonusRewardText(reward).replace(' / ', '<br>')}</div>
+      `;
+      list.appendChild(card);
+    });
+  }
+  DAILY_BONUS_REWARDS.forEach((reward, i) => {
+    const dayNum = i + 1;
+    const card = document.getElementById(`daily-card-${dayNum}`);
+    if (!card) return;
+    card.classList.toggle('claimed', dayNum <= game.dailyBonus.day);
+    card.classList.toggle('today', dayNum === day);
+  });
+}
+
 function getThemeName(theme) { return t(theme.nameKey); }
 
 // --- 多言語コンテンツ用ヘルパー: titleKey/descKey等から現在言語の文言を取得する ---
@@ -913,6 +1456,7 @@ function getUpgradeTitle(up) { return t(up.titleKey, up.titleVars); }
 function getUpgradeDesc(up) { return t(up.descKey, up.descVars); }
 function getAchTitle(a) { return t(a.titleKey, a.titleVars); }
 function getAchDesc(a) { return t(a.descKey, a.descVars); }
+function getAchEffect(a) { return a.effectKey ? t(a.effectKey, a.effectVars) : ''; }
 function getChallengeTitle(c) { return t(c.titleKey); }
 function getChallengeEffectLabel(c) { return t(c.effectLabelKey); }
 function getChallengeRewardLabel(c) { return t(c.rewardLabelKey); }
@@ -950,6 +1494,7 @@ function getInitialState() {
       highestParticles: new Decimal(10),
       highestPPS: 0,
       totalMkPurchased: [0, 0, 0, 0, 0, 0, 0, 0],
+      totalInfUpgradesPurchased: 0,
       shortestLinacTime: null,
       bestLinacMultiplier: 0,
       lastLinacCycleStart: Date.now()
@@ -979,6 +1524,8 @@ function getInitialState() {
     achievements: getDefaultAchievements(),
     achievementPoints: 0,
     themes: { owned: ['default'], selected: 'default' },
+    boosts: getDefaultBoostState(),
+    dailyBonus: getDefaultDailyBonusState(),
     lastSaveTime: Date.now(),
     timeFlux: { time: 0, speed: 1, capLevel: 0 },
     challenge: getDefaultChallengeState(),
@@ -1253,7 +1800,15 @@ function getUpgradeCost(up) {
   if (!up.leveled) return up.cost;
   const level = getUpgradeLevel(up.id);
   const researchMult = (typeof getResearchInfUpgradeCostMult === 'function') ? getResearchInfUpgradeCostMult() : 1;
-  return up.baseCost * Math.pow(2, level) * researchMult;
+  const achMult = (typeof getAchievementInfUpgradeCostMult === 'function') ? getAchievementInfUpgradeCostMult() : 1;
+  // IP倍化(id:9)は研究(P15等)でレベル上限が拡張されるため、素のレベル上限(10)を
+  // 超えた分は成長率を2倍/Lvから4倍/Lvに切り替えて、上限拡張の恩恵に見合う重さにする。
+  if (up.id === 9 && level >= INF_UPGRADE_MAX_LEVEL) {
+    const extraLevels = level - INF_UPGRADE_MAX_LEVEL + 1;
+    const costAtCap = Math.pow(2, INF_UPGRADE_MAX_LEVEL);
+    return up.baseCost * costAtCap * Math.pow(4, extraLevels) * researchMult * achMult;
+  }
+  return up.baseCost * Math.pow(2, level) * researchMult * achMult;
 }
 
 function getLinacMultValue() {
@@ -1281,12 +1836,14 @@ function getGlobalInfinityMultValue() {
 function getPerGenInfMult(genIndex) {
   const upgradeId = genIndex + 1;
   const level = getUpgradeLevel(upgradeId);
+  const achEffectMult = (typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1;
   let mult = 1;
   if (level > 0) {
     // Lv.1で×10, Lv.2で×100, Lv.3で×1000 ... (10^level の掛け算)
-    const powVal = Math.pow(10, level);
+    // Infinity Upgrade累計購入実績・全アップグレード最大化実績による効果倍率もここで乗算する
+    const powVal = Math.pow(10, level) * achEffectMult;
     // レベルが非常に高くnumberがオーバーフローする場合のみDecimalで計算し直す
-    mult = isFinite(powVal) ? mult * powVal : mulSafe(mult, decimalPowInt(10, level));
+    mult = isFinite(powVal) ? mult * powVal : mulSafe(mult, decimalPowInt(10, level), achEffectMult);
   }
   // インフィニティ回数に応じたペア強化（Mk.4&5 / Mk.3&6 / Mk.2&7 / Mk.1&8）
   INF_UPGRADES.forEach(up => {
@@ -1298,6 +1855,9 @@ function getPerGenInfMult(genIndex) {
   if (typeof isResearchDone === 'function' && isResearchDone('P4')) {
     mult = mulSafe(mult, 1.2);
   }
+  // 実績: 該当Mk.N Lv10実績で、このMkの生産のみ+20%
+  const achMkMult = (typeof getAchievementMkMult === 'function') ? getAchievementMkMult(genIndex) : 1;
+  mult = mulSafe(mult, achMkMult);
   return mult;
 }
 
@@ -1332,7 +1892,11 @@ function getGlobalMultiplier() {
     (typeof getResearchGlobalMult === 'function') ? getResearchGlobalMult() : 1,
     (typeof getResearchLinacMult === 'function') ? getResearchLinacMult() : 1,
     (typeof getResearchShiftMult === 'function') ? getResearchShiftMult() : 1,
-    (typeof getResearchBreakCrunchMult === 'function') ? getResearchBreakCrunchMult() : 1
+    (typeof getResearchBreakCrunchMult === 'function') ? getResearchBreakCrunchMult() : 1,
+    // 実績: 粒子到達実績（1e10〜1e300）による全粒子生産+1%/個
+    (typeof getAchievementParticleMult === 'function') ? getAchievementParticleMult() : 1,
+    // 実績: Mk.1〜Mk.8 Lv10を全て達成した実績による全Accelerator生産+25%
+    (typeof getAchievementAllMkMult === 'function') ? getAchievementAllMkMult() : 1
   );
 }
 
@@ -1410,7 +1974,10 @@ function simulateTick(dt) {
   }
 
   if (!offlineSimulating) updateGlitchEffect();
-  const globalMult = getGlobalMultiplier();
+  let globalMult = getGlobalMultiplier();
+  // APブースト「粒子ブースト」: 全体倍率^exponent（有効時のみ）
+  const particleBoostExp = (typeof getBoostExponent === 'function') ? getBoostExponent('particle') : 1;
+  if (particleBoostExp !== 1) globalMult = powSafe(globalMult, particleBoostExp);
   
   game.generators.forEach((gen, i) => {
     const genInfMult = getPerGenInfMult(i);
@@ -1541,6 +2108,7 @@ function gameLoop() {
     if (typeof updateBreakInfinityTab === 'function') updateBreakInfinityTab();
     if (typeof updateBreakInfinityUnlockSection === 'function') updateBreakInfinityUnlockSection();
     if (typeof updateTimeFluxTab === 'function') updateTimeFluxTab();
+    if (typeof updateBoostGrid === 'function') updateBoostGrid();
   } else {
     updateUI(currentPPSValue);
   }
@@ -1826,8 +2394,10 @@ function buyInfinityUpgrade(id) {
       game.infinity.ip = currentIP.sub(upgrade.cost);
       if (!game.infinity.upgrades) game.infinity.upgrades = [];
       game.infinity.upgrades.push(id);
+      game.stats.totalInfUpgradesPurchased = (game.stats.totalInfUpgradesPurchased || 0) + 1;
       updateUI(0);
       updateInfinityTab();
+      checkAchievements();
     }
     return;
   }
@@ -1839,8 +2409,10 @@ function buyInfinityUpgrade(id) {
     game.infinity.ip = currentIP.sub(cost);
     if (!game.infinity.levels) game.infinity.levels = {};
     game.infinity.levels[id] = (game.infinity.levels[id] || 0) + 1;
+    game.stats.totalInfUpgradesPurchased = (game.stats.totalInfUpgradesPurchased || 0) + 1;
     updateUI(0);
     updateInfinityTab();
+    checkAchievements();
   }
 }
 
@@ -2254,12 +2826,18 @@ function triggerBigCrunch() {
 
   // 通常のIP獲得量に、Big Crunch倍率（1.79e308を何個分保持していたか・切り捨て）を掛ける。
   // Break Infinity未解放時や、ちょうど上限到達時点でのCrunchは倍率1のため、既存の挙動と変わらない。
-  const baseGainedIP = Math.pow(2, getUpgradeLevel(9));
+  const achEffectMult = (typeof getAchievementInfUpgradeEffectMult === 'function') ? getAchievementInfUpgradeEffectMult() : 1;
+  const baseGainedIP = Math.pow(2, getUpgradeLevel(9)) * achEffectMult;
   let crunchMult = getBigCrunchMultiplier();
   if (crunchMult.lt(1)) crunchMult = new Decimal(1);
   const researchIPMult = (typeof getResearchIPGainMult === 'function') ? getResearchIPGainMult() : 1;
   const crunchCountMult = (typeof getResearchCrunchCountIPMult === 'function') ? getResearchCrunchCountIPMult() : 1;
-  let gainedIP = mulSafe(baseGainedIP, crunchMult, researchIPMult, crunchCountMult);
+  // 実績: Big Crunch回数実績（実績1つにつき+2%）によるIP獲得量倍率
+  const achIPMult = (typeof getAchievementIPGainMult === 'function') ? getAchievementIPGainMult() : 1;
+  let gainedIP = mulSafe(baseGainedIP, crunchMult, researchIPMult, crunchCountMult, achIPMult);
+  // APブースト「Infinityブースト」: 獲得IP^exponent（有効時のみ）
+  const infinityBoostExp = (typeof getBoostExponent === 'function') ? getBoostExponent('infinity') : 1;
+  if (infinityBoostExp !== 1) gainedIP = powSafe(gainedIP, infinityBoostExp);
   game.infinity.ip = getIP().add(gainedIP);
   game.infinity.crunchCount = (game.infinity.crunchCount || 0) + 1;
   if (game.infinity.bestTime === null || currentTime < game.infinity.bestTime) {
@@ -2382,6 +2960,10 @@ function loadGame() {
       if (!game.themes.selected || !THEMES.some(th => th.id === game.themes.selected) || !game.themes.owned.includes(game.themes.selected)) {
         game.themes.selected = 'default';
       }
+      game.boosts = parsed.boosts || getDefaultBoostState();
+      ensureBoostState();
+      game.dailyBonus = { ...getDefaultDailyBonusState(), ...(parsed.dailyBonus || {}) };
+      ensureDailyBonusState();
       game.lastSaveTime = (typeof parsed.lastSaveTime === 'number') ? parsed.lastSaveTime : Date.now();
       game.timeFlux = {
         time: (parsed.timeFlux && typeof parsed.timeFlux.time === 'number') ? parsed.timeFlux.time : 0,
@@ -2667,11 +3249,13 @@ function updateAchievementsTab() {
       const card = document.createElement('div');
       card.className = 'ach-card locked';
       card.id = `ach-card-${a.id}`;
+      const effectText = getAchEffect(a);
       card.innerHTML = `
         <div class="ach-card-icon">${a.icon || '🏆'}</div>
         <div>
           <div class="ach-card-title">${getAchTitle(a)}</div>
           <div class="ach-card-desc">${getAchDesc(a)}</div>
+          ${effectText ? `<div class="ach-card-effect">✦ ${effectText}</div>` : ''}
           <div class="ach-card-points">+${(typeof a.points === 'number') ? a.points : 10} AP</div>
         </div>
         <div class="ach-card-status">${t('ach.locked')}</div>
@@ -2706,6 +3290,56 @@ function updateShopTab() {
   const apEl = document.getElementById('shop-ap-display');
   if (apEl) apEl.textContent = format((typeof game.achievementPoints === 'number') ? game.achievementPoints : 0);
   updateThemeGrid();
+  updateBoostGrid();
+}
+
+// APブースト一覧の描画・購入可否/残り時間の更新
+function updateBoostGrid() {
+  const grid = document.getElementById('boost-grid');
+  if (!grid) return;
+  ensureBoostState();
+
+  if (!grid.dataset.initialized) {
+    grid.dataset.initialized = '1';
+    BOOSTS.forEach(boost => {
+      const card = document.createElement('div');
+      card.className = 'boost-card';
+      card.id = `boost-card-${boost.id}`;
+      card.innerHTML = `
+        <div class="boost-card-name">${t(boost.nameKey)}</div>
+        <div class="boost-card-effect">${t('shop.boost.effect', { category: t(`shop.boost.category.${boost.category}`), exp: boost.exponent, min: Math.round(boost.durationSec / 60) })}</div>
+        <div class="boost-progress-bar"><div class="boost-progress-fill" id="boost-progress-${boost.id}"></div></div>
+        <div class="boost-card-status" id="boost-status-${boost.id}"></div>
+      `;
+      card.onclick = () => buyBoost(boost.id);
+      grid.appendChild(card);
+    });
+  }
+
+  const currentAP = (typeof game.achievementPoints === 'number') ? game.achievementPoints : 0;
+  BOOSTS.forEach(boost => {
+    const card = document.getElementById(`boost-card-${boost.id}`);
+    const statusEl = document.getElementById(`boost-status-${boost.id}`);
+    const fillEl = document.getElementById(`boost-progress-${boost.id}`);
+    if (!card || !statusEl) return;
+
+    const activeSameCategory = isBoostActive(boost.category);
+    const isThisOneActive = activeSameCategory && game.boosts[boost.category].id === boost.id;
+    const affordable = currentAP >= boost.cost;
+
+    card.classList.toggle('affordable', affordable);
+    card.classList.toggle('active', isThisOneActive);
+    card.classList.toggle('locked-active', activeSameCategory && !isThisOneActive);
+
+    if (isThisOneActive) {
+      const remain = getBoostRemainingSeconds(boost.category);
+      statusEl.textContent = t('shop.boost.active', { time: formatTime(remain) });
+      if (fillEl) fillEl.style.width = `${Math.max(0, Math.min(100, (remain / boost.durationSec) * 100))}%`;
+    } else {
+      statusEl.textContent = `${t('shop.buy')} (${boost.cost} AP)`;
+      if (fillEl) fillEl.style.width = '0%';
+    }
+  });
 }
 
 // --- テーマ ---
@@ -3108,6 +3742,7 @@ function switchTab(name, btn) {
   }
 
   if (name === 'shop' && typeof updateShopTab === 'function') updateShopTab();
+  if (name === 'daily' && typeof updateDailyBonusTab === 'function') updateDailyBonusTab();
   if (name === 'cheat' && typeof updateCheatTab === 'function') updateCheatTab();
   if (name === 'research' && typeof updateResearchTab === 'function') {
     // 直前までdisplay:noneだったため、レイアウト確定後（フェードインの次フレーム）に線を引き直す
@@ -3550,7 +4185,7 @@ function rebuildDynamicUI() {
   ['achievements-list', 'challenge-list', 'infinity-upgrades-container',
    'accel-stats-list', 'auto-accel-list', 'setting-toggles-container',
    'glitch-toggle-container', 'audio-toggle-container', 'theme-grid',
-   'auto-linac-toggle-container', 'research-grid'].forEach(id => {
+   'auto-linac-toggle-container', 'research-grid', 'daily-bonus-list'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.innerHTML = ''; el.dataset.initialized = ''; }
   });
@@ -3568,6 +4203,7 @@ function rebuildDynamicUI() {
   if (typeof updateResearchSectionVisibility === 'function') updateResearchSectionVisibility();
   if (typeof updateUI === 'function') updateUI(currentPPSValue);
   if (typeof updateNewsText === 'function') updateNewsText();
+  if (typeof updateDailyBonusTab === 'function') updateDailyBonusTab();
 }
 
 function init() {
@@ -3603,6 +4239,8 @@ function init() {
   updateShopTab();
   updateChallengeTab();
   updateChallengeSectionVisibility();
+  ensureDailyBonusState();
+  if (typeof updateDailyBonusTab === 'function') updateDailyBonusTab();
   if (typeof updateResearchTab === 'function') updateResearchTab();
   if (typeof updateResearchSectionVisibility === 'function') updateResearchSectionVisibility();
   initBreakInfinity();

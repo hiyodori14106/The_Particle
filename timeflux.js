@@ -241,6 +241,16 @@ function finishOfflineSimulation() {
 
 function proceedToNormalGame() {
   game.lastTick = Date.now();
+  // デイリーボーナスの受け取りチェック（未受け取りならオーバーレイを表示し、
+  // 「受け取る」が押されてから enterMainGame() でゲーム本編へ進む）
+  if (typeof checkAndShowDailyBonus === 'function') {
+    checkAndShowDailyBonus();
+  } else {
+    enterMainGame();
+  }
+}
+
+function enterMainGame() {
   if (typeof switchTab === 'function') switchTab('main');
   if (typeof gameLoop === 'function') gameLoop();
 }
