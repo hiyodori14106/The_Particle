@@ -2910,7 +2910,12 @@ function performInfinityReset() {
   }));
   // unlocksは維持する
   
-  if (!offlineSimulating) {
+  // 演出表示中(isCrunching=true)はgameLoop自体が一時停止しているため、ここで手動で
+  // 画面を更新する必要がある。演出なしの即リセット時やオフライン進行中は、この直後に
+  // gameLoop側（または呼び出し元）の通常の更新処理が同じフレーム内で走るため、ここでは
+  // 何もしない（二重に重い処理を行うと、ppsが高く連続でBig Crunchが起こる状況で
+  // 体感的な「無限ループ」＝フリーズ・カクつきの原因になる）。
+  if (isCrunching) {
     updateUI(0);
     updateStats();
     updateInfinityTab();
