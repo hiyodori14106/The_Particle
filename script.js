@@ -855,14 +855,9 @@ function getResearchTFBaseMaxMult() {
   return isResearchDone('P19') ? 2 : 1;
 }
 
-// 研究P-17: Break Infinity解放後、Big Crunchを1回行うごとに全倍率が×2になる
-// （game.breakInfinity.postCrunchCount = Break Infinity解放後に行ったBig Crunchの回数。
-// 　triggerBigCrunch()側でカウントし、ここではその回数分だけ2倍を掛け合わせるだけ）
+// 研究P-17: 全倍率が×2になる（固定倍率）
 function getResearchBreakCrunchMult() {
-  if (!isResearchDone('P17')) return 1;
-  const count = (game.breakInfinity && game.breakInfinity.postCrunchCount) || 0;
-  if (count <= 0) return 1;
-  return decimalPowInt(2, count);
+  return isResearchDone('P17') ? 2 : 1;
 }
 
 // Big Crunch倍率の必要桁数の割合（P22で-10%、必要桁数が減り倍率が早く増える）
@@ -1099,12 +1094,12 @@ const THEMES = [
 // 同じcategoryのブーストは同時に1つだけ有効（新しく買うと上書きされる）。
 // =========================================================
 const BOOSTS = [
-  { id: 'particleBoost1', category: 'particle', nameKey: 'shop.boost.particleBoost1', cost: 50,  exponent: 1.05, durationSec: 300 },
+  { id: 'particleBoost1', category: 'particle', nameKey: 'shop.boost.particleBoost1', cost: 50,  exponent: 1.15, durationSec: 300 },
   { id: 'particleBoost2', category: 'particle', nameKey: 'shop.boost.particleBoost2', cost: 70,  exponent: 1.2,  durationSec: 180 },
-  { id: 'particleBoost3', category: 'particle', nameKey: 'shop.boost.particleBoost3', cost: 100, exponent: 1.07, durationSec: 600 },
-  { id: 'infinityBoost1', category: 'infinity', nameKey: 'shop.boost.infinityBoost1', cost: 100, exponent: 1.05, durationSec: 300 },
+  { id: 'particleBoost3', category: 'particle', nameKey: 'shop.boost.particleBoost3', cost: 100, exponent: 1.17, durationSec: 600 },
+  { id: 'infinityBoost1', category: 'infinity', nameKey: 'shop.boost.infinityBoost1', cost: 100, exponent: 1.15, durationSec: 300 },
   { id: 'infinityBoost2', category: 'infinity', nameKey: 'shop.boost.infinityBoost2', cost: 110, exponent: 1.2,  durationSec: 180 },
-  { id: 'infinityBoost3', category: 'infinity', nameKey: 'shop.boost.infinityBoost3', cost: 150, exponent: 1.07, durationSec: 600 }
+  { id: 'infinityBoost3', category: 'infinity', nameKey: 'shop.boost.infinityBoost3', cost: 150, exponent: 1.17, durationSec: 600 }
 ];
 
 function getDefaultBoostState() {
@@ -1802,11 +1797,11 @@ function getUpgradeCost(up) {
   const researchMult = (typeof getResearchInfUpgradeCostMult === 'function') ? getResearchInfUpgradeCostMult() : 1;
   const achMult = (typeof getAchievementInfUpgradeCostMult === 'function') ? getAchievementInfUpgradeCostMult() : 1;
   // IP倍化(id:9)は研究(P15等)でレベル上限が拡張されるため、素のレベル上限(10)を
-  // 超えた分は成長率を2倍/Lvから4倍/Lvに切り替えて、上限拡張の恩恵に見合う重さにする。
+  // 超えた分は成長率を2倍/Lvから3倍/Lvに切り替えて、上限拡張の恩恵に見合う重さにする。
   if (up.id === 9 && level >= INF_UPGRADE_MAX_LEVEL) {
     const extraLevels = level - INF_UPGRADE_MAX_LEVEL + 1;
     const costAtCap = Math.pow(2, INF_UPGRADE_MAX_LEVEL);
-    return up.baseCost * costAtCap * Math.pow(4, extraLevels) * researchMult * achMult;
+    return up.baseCost * costAtCap * Math.pow(3, extraLevels) * researchMult * achMult;
   }
   return up.baseCost * Math.pow(2, level) * researchMult * achMult;
 }
@@ -2816,13 +2811,6 @@ function triggerBigCrunch() {
   const currentTime = Date.now() - startTime;
   
   if (!game.infinity) game.infinity = { ip: new Decimal(0), crunchCount:0, bestTime:null, upgrades:[], broken:false };
-
-  // Break Infinity解放後のBig Crunchなら、研究P-17用のカウントを1増やす
-  // （P-17未取得でもカウント自体は積み上げておき、後から取得した時にそれまでの回数分が反映されるようにする）
-  if (typeof isBreakInfinityActive === 'function' && isBreakInfinityActive()) {
-    if (typeof ensureBreakInfinityState === 'function') ensureBreakInfinityState();
-    game.breakInfinity.postCrunchCount = (game.breakInfinity.postCrunchCount || 0) + 1;
-  }
 
   // 通常のIP獲得量に、Big Crunch倍率（1.79e308を何個分保持していたか・切り捨て）を掛ける。
   // Break Infinity未解放時や、ちょうど上限到達時点でのCrunchは倍率1のため、既存の挙動と変わらない。
